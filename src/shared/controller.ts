@@ -20,7 +20,34 @@ export interface LabConfig {
   recordPrefix: string
   defaultLibrary: RecordLibrary
 }
+export interface DisplayRange { minimum: number; maximum: number }
+export interface CorrectionStatus {
+  active: boolean
+  collecting: boolean
+  collected: number
+  target: number
+  appliedAt: string | null
+  error: string | null
+}
+export interface ArrayStatistics {
+  minimum: number
+  maximum: number
+  mean: number
+  maxRow: number
+  maxColumn: number
+}
+export interface ArrayDiagnostics {
+  validFrames: number
+  crcErrors: number
+  droppedFrames: number
+  duplicateRows: number
+  captureFps: number
+  lastFrameAt: string | null
+}
 export interface PressureStatus {
+  processingVersion: number
+  correction: CorrectionStatus
+  diagnostics: ArrayDiagnostics
   mode: MapMode
   generation: number
   paused: boolean
@@ -33,10 +60,15 @@ export interface PressureFrame {
   width: 64
   height: 64
   values: number[]
+  displayValues: number[]
+  processingVersion: number
+  correction: CorrectionStatus
+  rawStatistics: ArrayStatistics
+  displayStatistics: ArrayStatistics
   mode: MapMode
   generation: number
   source: 'simulation'
-  stats: { validFrames: number; crcErrors: number; droppedFrames: number; duplicateRows: number }
+  stats: ArrayDiagnostics
 }
 export interface LabState {
   array: PressureStatus
@@ -72,8 +104,8 @@ export type DeviceCommand =
   | { type: 'pressure'; value: number }
   | { type: 'database'; value: string }
 
-export type ControllerMethod = 'state.get' | 'device.command' | 'config.get' | 'config.update' | 'logs.list' | 'records.list' | 'pressure.mode'
-export const rendererMethods: readonly string[] = ['state.get', 'device.command', 'config.get', 'config.update', 'logs.list', 'records.list', 'pressure.mode']
+export type ControllerMethod = 'state.get' | 'device.command' | 'config.get' | 'config.update' | 'logs.list' | 'records.list' | 'pressure.mode' | 'pressure.status' | 'pressure.zero.start' | 'pressure.zero.clear'
+export const rendererMethods: readonly string[] = ['state.get', 'device.command', 'config.get', 'config.update', 'logs.list', 'records.list', 'pressure.mode', 'pressure.status', 'pressure.zero.start', 'pressure.zero.clear']
 
 export type ControllerEvent =
   | { event: 'pressure.frame'; data: PressureFrame }

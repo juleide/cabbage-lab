@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
 import { useController } from './hooks/useController'
+import { useDisplayRange } from './hooks/useDisplayRange'
 import { useTheme } from './hooks/useTheme'
 import { IconDefinitions } from './components/Icon'
 import { ScreenViewport } from './components/ScreenViewport'
@@ -13,6 +14,7 @@ import { Settings } from './pages/Settings'
 export default function App() {
   const controller = useController()
   const appearance = useTheme()
+  const display = useDisplayRange()
   const { state, online, busy, error, logs, notice, notify, send } = controller
   const [page, setPage] = useState<'dashboard' | 'settings'>('dashboard')
   const [dialog, setDialog] = useState<'logs' | 'reset' | null>(null)
@@ -39,8 +41,8 @@ export default function App() {
           onSettings={() => setPage('settings')}
           onEmergency={() => { void send({ type: 'emergency' }) }} onReset={() => setDialog('reset')} />}
         {page === 'settings'
-          ? <Settings onBack={() => setPage('dashboard')} controller={controller} appearance={appearance} exporting={exporting} onExport={onExport} />
-          : <Dashboard state={state} online={online} busy={busy} error={error} exporting={exporting}
+          ? <Settings display={display} onBack={() => setPage('dashboard')} controller={controller} appearance={appearance} exporting={exporting} onExport={onExport} />
+          : <Dashboard range={display.range} notify={notify} state={state} online={online} busy={busy} error={error} exporting={exporting}
               onCommand={command => { void send(command) }} onExport={() => { void onExport() }}
               onLogs={() => setDialog('logs')} onSettings={() => setPage('settings')} />}
       </ScreenViewport>

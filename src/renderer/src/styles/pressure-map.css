@@ -116,3 +116,39 @@
   text-align: center;
   pointer-events: none;
 }
+
+.map-title { display: flex; align-items: center; gap: 3px; }
+.map-details-entry {
+  display: grid; place-items: center; width: 40px; height: 44px; padding: 0;
+  border: 0; border-radius: 7px; background: transparent; color: var(--muted);
+}
+.map-details-entry:hover { background: var(--bg); color: var(--green); }
+.map-details-entry svg { width: 16px; height: 16px; }
+.heat-wrap canvas { touch-action: none; cursor: crosshair; }
+.selected-point {
+  position: absolute; width: 12px; height: 12px; transform: translate(-50%, -50%);
+  border: 2px solid white; border-radius: 50%; box-shadow: 0 0 0 1px #173d70;
+  pointer-events: none;
+}
+.map-point-readout {
+  width: 100%; min-height: 15px; color: var(--muted); font-size: 10px; text-align: center;
+  white-space: nowrap; font-variant-numeric: tabular-nums;
+}
+.map-point-readout small { margin-left: 5px; color: var(--ink); }
+.pressure-details-dialog { width: min(860px, 94vw); max-height: 90vh; overflow: auto; background: var(--surface); }
+.pressure-details-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, 1.15fr); gap: 24px; }
+.pressure-details-map { align-self: start; width: 100%; }
+.pressure-details-map .heat-wrap { width: 100%; }
+.pressure-details-info { min-width: 0; }
+.pressure-frame-time { color: var(--muted); font-size: 11px; margin: 0 0 12px; }
+.pressure-statistics { width: 100%; border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums; }
+.pressure-statistics th, .pressure-statistics td { padding: 9px 5px; border-bottom: 1px solid var(--line); text-align: right; }
+.pressure-statistics th:first-child { text-align: left; font-weight: 500; }
+.pressure-statistics thead { color: var(--muted); }
+.pressure-point-info { font-size: 12px; line-height: 1.8; }
+.pressure-correction-status { padding: 10px 12px; border-radius: 7px; background: var(--bg); color: var(--green); font-size: 12px; }
+.pressure-correction-status small { display: block; margin-top: 6px; color: var(--muted); font-size: 11px; }
+@media (max-width: 700px) {
+  .pressure-details-grid { grid-template-columns: minmax(0, 1fr); }
+  .pressure-details-map { max-width: 320px; justify-self: center; }
+}

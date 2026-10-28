@@ -74,6 +74,7 @@ sys.path.insert(0, str(ROOT / 'backend' / 'src'))
 from lab_controller.array.protocol import FrameAssembler, RowDecoder, simulation_crc
 from lab_controller.array.acquisition import verify_simulated
 from lab_controller.array.simulated import make_packets
+from lab_controller.array.processing import BaselineCorrection, statistics
 
 assert simulation_crc(b'123456789') == 0x29B1
 binary = make_packets(255, 'press', 0, False)
@@ -105,6 +106,22 @@ partial.expire(0.6)
 assert partial.dropped_frames == 1
 assert partial.feed(rows[1], 0.61) is None
 
+# Deterministic baseline check: raw input stays untouched, signed display values survive.
+correction = BaselineCorrection()
+original = [100] * 4096
+correction.start(0)
+for index in range(25):
+    result = correction.apply(original, index * 0.04)
+assert correction.status()['active'] and result == [0] * 4096
+assert original == [100] * 4096
+assert correction.apply([90] * 4096, 1.1) == [-10] * 4096
+correction.start(2)
+correction.expire(5.1)
+assert correction.status()['active'] and correction.status()['error']
+correction.clear()
+assert correction.apply(original, 6) == original and not correction.status()['active']
+assert statistics([3, 1, 3] + [0] * 4093)['maxColumn'] == 0
+
 with tempfile.TemporaryDirectory(prefix='lab-controller-') as data:
     client = Client(data)
     try:
@@ -123,8 +140,24 @@ with tempfile.TemporaryDirectory(prefix='lab-controller-') as data:
                             and message['data']['generation'] == status['generation'])['data']
         assert frame['mode'] == 'grip'
         client.command('zero')
-        client.wait(lambda message: message.get('event') == 'pressure.frame'
-                    and all(value == 0 for value in message['data']['values']))
+        raw_frame = client.wait(lambda message: message.get('event') == 'pressure.frame')['data']
+        assert any(raw_frame['values']), '标量置零不得清空原始阵列'
+        client.request('pressure.zero.start')
+        try:
+            client.command('toggle', device='motor1')
+            raise AssertionError('修正收集中不得启动电机')
+        except ValueError:
+            pass
+        corrected = client.wait(lambda message: message.get('event') == 'pressure.frame'
+                                and message['data']['correction']['active'])['data']
+        assert corrected['correction']['collected'] == 25
+        assert all(isinstance(value, int) for value in corrected['values'])
+        assert max(abs(value) for value in corrected['displayValues']) < 300
+        client.request('pressure.zero.clear')
+        restored = client.wait(lambda message: message.get('event') == 'pressure.frame'
+                              and not message['data']['correction']['active'])['data']
+        assert restored['displayValues'] == restored['values']
+        assert client.request('pressure.status')['diagnostics']['captureFps'] > 0
         config = {**client.initial['config'], 'defaultPressure': 0.42, 'recordPrefix': 'LAB'}
         client.request('config.update', {'config': config})
         client.command('initialize')
@@ -160,4 +193,4 @@ with tempfile.TemporaryDirectory(prefix='lab-controller-') as data:
         assert client.request('records.list')[0]['id'] == snapshot['runId']
     finally:
         client.close()
-print('PASS: 阵列拆包/CRC/重排/循环、独立刷新、模式/置零/暂停、IPC 与 SQLite 保留')
+print('PASS: 阵列拆包/CRC/重排/循环、独立刷新、基线修正/取消/互锁、暂停、IPC 与 SQLite 保留')

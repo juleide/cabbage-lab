@@ -9,11 +9,20 @@ interface Props {
   online: boolean
   busy: boolean
   onCommand: (command: DeviceCommand) => void
+  onNotify: (message: string) => void
 }
 const deviceIds: DeviceId[] = ['motor1', 'motor2', 'lift']
 
-export function DeviceControlPanel({ state, online, busy, onCommand }: Props) {
-  const disabled = !online || busy || state.stopped || state.running
+export function DeviceControlPanel({ state, online, busy, onCommand, onNotify }: Props) {
+  const actuatorsActive = deviceIds.some(device => state.devices[device])
+  const correcting = state.array.correction?.collecting ?? false
+  const disabled = !online || busy || state.stopped || state.running || correcting
+
+  function requestIdleAction(type: 'home' | 'zero') {
+    if (state.running) { onNotify('请先停止试验'); return }
+    if (actuatorsActive) { onNotify('请先关闭电机和升降装置'); return }
+    onCommand({ type })
+  }
   return (
     <section className="panel">
       <div className="panel-head"><div className="panel-title">设备控制</div></div>
@@ -29,10 +38,10 @@ export function DeviceControlPanel({ state, online, busy, onCommand }: Props) {
         </div>
         <div className="prepare-actions">
           <button className="btn" disabled={disabled} onClick={() => onCommand({ type: 'initialize' })}>初始化</button>
-          <button className="btn" disabled={disabled} onClick={() => onCommand({ type: 'home' })}>轴回零</button>
-          <button className="btn" disabled={disabled} onClick={() => onCommand({ type: 'zero' })}>传感器置零</button>
+          <button className="btn" disabled={disabled} onClick={() => requestIdleAction('home')}>轴回零</button>
+          <button className="btn" disabled={disabled} onClick={() => requestIdleAction('zero')}>传感器置零</button>
         </div>
-        <button className="btn primary" disabled={!online || busy || state.stopped} onClick={() => onCommand({ type: 'run' })}><Icon name="play" /><span>{state.running ? '停止试验' : '联动开始'}</span></button>
+        <button className="btn primary" disabled={!online || busy || state.stopped || correcting} onClick={() => onCommand({ type: 'run' })}><Icon name="play" /><span>{state.running ? '停止试验' : '联动开始'}</span></button>
       </div>
     </section>
   )

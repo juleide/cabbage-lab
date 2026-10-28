@@ -1,10 +1,12 @@
-import type { DeviceCommand, LabState } from '../../../shared/controller'
+import type { DeviceCommand, DisplayRange, LabState } from '../../../shared/controller'
 import { DeviceControlPanel } from '../components/DeviceControlPanel'
 import { MetricsPanel } from '../components/MetricsPanel'
 import { PressureMapPanel } from '../components/PressureMapPanel'
 import { DataActionsPanel } from '../components/DataActionsPanel'
 
 interface Props {
+  range: DisplayRange
+  notify: (message: string) => void
   state: LabState | null
   online: boolean
   busy: boolean
@@ -16,7 +18,7 @@ interface Props {
   onSettings: () => void
 }
 
-export function Dashboard({ state, online, busy, exporting, error, onCommand, onExport, onLogs, onSettings }: Props) {
+export function Dashboard({ range, notify, state, online, busy, exporting, error, onCommand, onExport, onLogs, onSettings }: Props) {
   if (!state) {
     return (
       <main className="controller-empty panel">
@@ -31,10 +33,10 @@ export function Dashboard({ state, online, busy, exporting, error, onCommand, on
   return (
     <main className={`layout${online ? '' : ' dashboard-offline'}`}>
       {!online && <div className="offline-banner" role="alert">设备状态未知 · {error}，请在设置页检查控制端。</div>}
-      <DeviceControlPanel state={state} online={online} busy={busy} onCommand={onCommand} />
+      <DeviceControlPanel state={state} online={online} busy={busy} onCommand={onCommand} onNotify={notify} />
       <MetricsPanel values={state.values} stopped={state.stopped} online={online} />
       <div className="right-col">
-        <PressureMapPanel />
+        <PressureMapPanel range={range} idle={idle} notify={notify} onEmergency={() => onCommand({ type: 'emergency' })} />
         <DataActionsPanel database={state.database} running={state.running} online={online} idle={idle}
           exporting={exporting} onDatabaseChange={value => onCommand({ type: 'database', value })}
           onExport={onExport} onLogs={onLogs} />

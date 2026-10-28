@@ -13,6 +13,8 @@ const api: DesktopAPI = {
   info: () => ipcRenderer.invoke('app:info'),
   openDirectory: kind => ipcRenderer.invoke('app:directory', kind),
   exportRecords: runId => ipcRenderer.invoke('records:export', runId),
+  getDisplayRange: () => ipcRenderer.invoke('ui:range:get'),
+  setDisplayRange: range => ipcRenderer.invoke('ui:range:set', range),
   getTheme: () => ipcRenderer.invoke('ui:theme:get'),
   setTheme: theme => ipcRenderer.invoke('ui:theme:set', theme)
 }

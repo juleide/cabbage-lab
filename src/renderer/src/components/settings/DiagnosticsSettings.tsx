@@ -1,3 +1,4 @@
+import { useArrayDiagnostics } from '../../hooks/useArrayDiagnostics'
 import type { AppInfo } from '../../../../shared/controller'
 
 interface Props {
@@ -10,6 +11,9 @@ interface Props {
   onStop: () => void
 }
 export function DiagnosticsSettings({ info, online, idle, busy, error, onRestart, onStop }: Props) {
+  const array = useArrayDiagnostics(online)
+  const diagnostic = array.status?.diagnostics
+  const correction = array.status?.correction
   return (
     <section className="settings-card">
       <h3>运行与诊断</h3>
@@ -25,6 +29,18 @@ export function DiagnosticsSettings({ info, online, idle, busy, error, onRestart
         <button className="btn" disabled={!online} onClick={onStop}>停止全部执行机构</button>
         <button className="btn" disabled={busy || (online && !idle)} onClick={onRestart}>重启控制进程</button>
       </div>
+      <h3>阵列采集</h3>
+      <dl className="settings-details">
+        <div><dt>数据来源</dt><dd>模拟采集 · {array.status?.mode === 'grip' ? '抓取' : '按压'}</dd></div>
+        <div><dt>采集帧率</dt><dd>{online ? (diagnostic?.captureFps ?? 0).toFixed(1) : '0.0'} FPS</dd></div>
+        <div><dt>界面接收帧率</dt><dd>{array.receiveFps.toFixed(1)} FPS</dd></div>
+        <div><dt>最近完整帧</dt><dd>{diagnostic?.lastFrameAt ? new Date(diagnostic.lastFrameAt).toLocaleString('zh-CN') : '尚未收到'}{!online && ' · 非实时'}</dd></div>
+        <div><dt>有效帧数</dt><dd>{diagnostic?.validFrames ?? '—'}</dd></div>
+        <div><dt>CRC 错误</dt><dd>{diagnostic?.crcErrors ?? '—'}</dd></div>
+        <div><dt>残帧丢弃</dt><dd>{diagnostic?.droppedFrames ?? '—'}</dd></div>
+        <div><dt>零点修正</dt><dd>{correction?.collecting ? `收集中 ${correction.collected}/${correction.target}` : correction?.active ? '已启用' : '未启用'}{!online && ' · 上次状态'}</dd></div>
+      </dl>
+      {(array.error || array.status?.error || correction?.error) && <p className="settings-warning">{array.error || array.status?.error || correction?.error}</p>}
       <p className="settings-hint">重启前请停止试验和全部执行机构。重启后保持待机，不会自动恢复试验。</p>
       <p className="settings-warning">软件停止不能替代硬件急停与安全联锁。</p>
     </section>

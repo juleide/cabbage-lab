@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { LabConfig, RunRecord } from '../../../shared/controller'
 import type { useController } from '../hooks/useController'
+import { DisplaySettings } from '../components/settings/DisplaySettings'
+import type { useDisplayRange } from '../hooks/useDisplayRange'
 import type { useTheme } from '../hooks/useTheme'
 import { AppearanceSettings } from '../components/settings/AppearanceSettings'
 import { ExperimentSettings } from '../components/settings/ExperimentSettings'
@@ -8,6 +10,7 @@ import { RecordsSettings } from '../components/settings/RecordsSettings'
 import { DiagnosticsSettings } from '../components/settings/DiagnosticsSettings'
 
 interface Props {
+  display: ReturnType<typeof useDisplayRange>
   onBack: () => void
   controller: ReturnType<typeof useController>
   appearance: ReturnType<typeof useTheme>
@@ -16,6 +19,7 @@ interface Props {
 }
 const sections = [
   { id: 'appearance', label: '外观与主题' },
+  { id: 'display', label: '云图显示' },
   { id: 'experiment', label: '试验与采集' },
   { id: 'records', label: '数据与日志' },
   { id: 'diagnostics', label: '运行与诊断' },
@@ -24,7 +28,7 @@ const sections = [
 
 type Section = typeof sections[number]['id']
 
-export function Settings({ onBack, controller, appearance, exporting, onExport }: Props) {
+export function Settings({ display, onBack, controller, appearance, exporting, onExport }: Props) {
   const { state, config, configError, online, busy, error, info, notify, request } = controller
   const [section, setSection] = useState<Section>('appearance')
   const [draft, setDraft] = useState<LabConfig | null>(config)
@@ -71,6 +75,7 @@ export function Settings({ onBack, controller, appearance, exporting, onExport }
       <div className="settings-content">
         {section === 'appearance' && <AppearanceSettings theme={appearance.theme} ready={appearance.ready}
           error={appearance.themeError} onChange={appearance.setTheme} />}
+        {section === 'display' && <DisplaySettings display={display} notify={notify} />}
         {section === 'experiment' && <ExperimentSettings draft={draft} onChange={setDraft} saving={saving}
           disabled={!online || !idle || busy} error={configError} onSave={() => void save()} />}
         {section === 'records' && <RecordsSettings info={info} online={online} library={state?.database}
@@ -93,6 +98,7 @@ export function Settings({ onBack, controller, appearance, exporting, onExport }
 function SettingsNavIcon({ section }: { section: Section }) {
   const paths: Record<Section, string> = {
     appearance: 'M12 3a9 9 0 1 0 9 9c0-2-2-2-3-2h-2a2 2 0 0 1-2-2c0-1 1-2 0-3l-2-2ZM7 10h.01M9 6h.01M6 14h.01',
+    display: 'M3 5h18v14H3V5Zm4 10 3-4 4 3 3-6',
     experiment: 'M5 3v7m0 4v7M12 3v12m0 4v2M19 3v3m0 4v11M2 10h6m1 5h6m1-9h6',
     records: 'M5 5c0-3 14-3 14 0s-14 3-14 0Zm0 0v14c0 3 14 3 14 0V5M5 12c0 3 14 3 14 0',
     diagnostics: 'M3 12h4l3-8 4 16 3-8h4',

@@ -41,7 +41,7 @@ class Controller:
             self.log(self.config.error)
 
     def refresh(self):
-        self.array.configure(zero=self.state['zero'], paused=self.state['stopped'])
+        self.array.configure(paused=self.state['stopped'])
         self.state['array'] = self.array.status()
         self.state['devices'] = self.device.outputs.copy()
         self.state['values'] = (dict.fromkeys(('normal', 'area', 'friction', 'speed', 'coefficient', 'pressure'), 0)
@@ -134,6 +134,8 @@ class Controller:
             message = '已切换记录库'
         else:
             self.unlocked()
+            if kind == 'toggle' or (kind == 'run' and not self.state['running']):
+                require(not self.array.status()['correction']['collecting'], '阵列零点修正收集中，请等待完成或取消修正')
             if kind == 'run':
                 if self.state['running']:
                     self.state['running'] = False
@@ -165,6 +167,7 @@ class Controller:
                     if kind != 'initialize':
                         self.idle()
                     if kind == 'initialize':
+                        self.array.clear_correction()
                         self.device.stop()
                         self.state.update(initialized=True, zero=False, pressure=self.config.value['defaultPressure'])
                         message = '初始化完成 · 使用已保存的默认气压，历史记录不会删除'
@@ -185,6 +188,23 @@ class Controller:
             return self.snapshot()
         if method == 'device.command':
             return self.command(params)
+        if method == 'pressure.status':
+            require(not params, '该请求不接受参数')
+            return self.array.status()
+        if method == 'pressure.zero.start':
+            require(not params, '该请求不接受参数')
+            self.unlocked()
+            self.idle()
+            self.array.start_correction()
+            self.log('开始阵列零点修正，收集 25 个完整原始帧')
+            self.publish()
+            return self.array.status()
+        if method == 'pressure.zero.clear':
+            require(not params, '该请求不接受参数')
+            self.array.clear_correction()
+            self.log('阵列零点修正已取消')
+            self.publish()
+            return self.array.status()
         if method == 'pressure.mode':
             require(set(params) == {'mode'} and params['mode'] in ('press', 'grip'), '无效的阵列模式')
             self.array.configure(mode=params['mode'])

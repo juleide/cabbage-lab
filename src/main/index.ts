@@ -1,11 +1,12 @@
 import { app, BrowserWindow, ipcMain, shell, powerMonitor, powerSaveBlocker, nativeImage } from 'electron'
-import { mkdir, readFile, writeFile, rename } from 'node:fs/promises'
+import { mkdir } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { rendererMethods } from '../shared/controller'
-import type { ControllerEvent, Snapshot, Theme } from '../shared/controller'
+import type { ControllerEvent, Snapshot } from '../shared/controller'
 import { ControllerProcess } from './services/controller'
 import { exportRecords } from './services/export-records'
+import { UIPreferences } from './services/preferences'
 
 const here = fileURLToPath(new URL('.', import.meta.url))
 let mainWindow: BrowserWindow | null = null
@@ -15,8 +16,7 @@ let restarting = false
 let exporting = false
 let sleepBlocker: number | undefined
 let root = ''
-let theme: Theme = 'light'
-let themeWrite = Promise.resolve()
+let preferences: UIPreferences
 
 function power(active: boolean) {
   if (active && sleepBlocker === undefined) sleepBlocker = powerSaveBlocker.start('prevent-app-suspension')
@@ -64,20 +64,10 @@ function registerIPC() {
     try { return await exportRecords(controller, mainWindow!, runId as string | undefined) }
     finally { exporting = false }
   })
-  handler('ui:theme:get', () => theme)
-  handler('ui:theme:set', (value: unknown) => {
-    if (!['light', 'dark', 'blue'].includes(String(value))) throw new Error('无效的主题')
-    const next = value as Theme
-    const persist = async () => {
-      const target = join(app.getPath('userData'), 'ui.json')
-      await writeFile(target + '.tmp', JSON.stringify({ theme: next }), 'utf8')
-      await rename(target + '.tmp', target)
-      theme = next
-    }
-    const result = themeWrite.then(persist)
-    themeWrite = result.catch(() => {})
-    return result
-  })
+  handler('ui:theme:get', () => preferences.theme)
+  handler('ui:theme:set', (value: unknown) => preferences.setTheme(value))
+  handler('ui:range:get', () => preferences.displayRange)
+  handler('ui:range:set', (value: unknown) => preferences.setDisplayRange(value))
 }
 
 function createWindow() {
@@ -91,7 +81,7 @@ function createWindow() {
     width: 1024, height: 600, minWidth: 768, minHeight: 450,
     icon: join(icons, process.platform === 'win32' ? 'app.ico' : 'app.png'),
     title: '甘蓝检测多功能试验台',
-    backgroundColor: { light: '#f3f5f4', dark: '#14191b', blue: '#eaf3ff' }[theme],
+    backgroundColor: { light: '#f3f5f4', dark: '#14191b', blue: '#eaf3ff' }[preferences.theme],
     autoHideMenuBar: true,
     webPreferences: { preload: join(here, '../preload/index.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true }
   })
@@ -110,10 +100,8 @@ else {
     // Simulation data never shares the reference project's directories or real hardware data.
     root = resolve(process.env.LAB_DATA_DIR || join(app.getPath('userData'), 'simulation'))
     for (const kind of ['data', 'config', 'logs']) await mkdir(join(root, kind), { recursive: true })
-    try {
-      const saved = JSON.parse(await readFile(join(app.getPath('userData'), 'ui.json'), 'utf8'))
-      if (['light', 'dark', 'blue'].includes(saved.theme)) theme = saved.theme
-    } catch { /* Missing UI preference is not a device configuration error. */ }
+    preferences = new UIPreferences(join(app.getPath('userData'), 'ui.json'))
+    await preferences.load()
     controller = new ControllerProcess(root)
     controller.on('event', (event: ControllerEvent) => {
       if (event.event === 'state' || event.event === 'ready') {
@@ -133,7 +121,7 @@ else {
     if (quitting || !controller) return
     event.preventDefault()
     quitting = true
-    void Promise.allSettled([controller.stop(), themeWrite]).finally(() => { power(false); app.quit() })
+    void Promise.allSettled([controller.stop(), preferences.flush()]).finally(() => { power(false); app.quit() })
   })
   app.on('window-all-closed', () => app.quit())
 }
