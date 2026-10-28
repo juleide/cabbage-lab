@@ -1,7 +1,7 @@
 import type { DisplayRange } from '../../../shared/controller'
 import { DEFAULT_DISPLAY_RANGE } from '../../../shared/display.ts'
 
-const PALETTE = [[234, 244, 237], [171, 215, 187], [95, 181, 139], [239, 219, 119], [235, 156, 81], [217, 99, 77]]
+import { PRESSURE_PALETTE as PALETTE } from './palette.ts'
 export const GRID_SIZE = 64
 export const SIMULATION_MAX = 4095
 

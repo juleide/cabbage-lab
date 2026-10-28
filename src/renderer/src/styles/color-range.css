@@ -1,0 +1,78 @@
+.color-range {
+  padding: 20px 24px 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--bg);
+}
+
+.color-range-values {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.color-range-values > div {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 5px;
+}
+
+.color-range-values > div:last-child { text-align: right; }
+.color-range-label { color: var(--ink); font-size: 12px; font-weight: 500; }
+.color-range-values output { color: var(--green); font: 500 23px/1.4 ui-monospace, monospace; overflow-wrap: anywhere; }
+.color-range-values small { color: var(--muted); font-size: 11px; }
+
+.color-range-track {
+  position: relative;
+  height: 108px;
+  margin: 4px 22px 0;
+}
+
+.color-range-band {
+  position: absolute;
+  top: 46px;
+  width: 100%;
+  height: 16px;
+  border: 1px solid #00000014;
+  border-radius: 8px;
+}
+
+/* Stagger touch targets vertically so close endpoints can both be selected. */
+.color-range-thumb {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  transform: translateX(-50%);
+  background: transparent;
+  color: var(--green);
+  cursor: ew-resize;
+  touch-action: none;
+  user-select: none;
+}
+
+.color-range-thumb--minimum { top: 2px; }
+.color-range-thumb--maximum { top: 62px; }
+.color-range-thumb::after { position: absolute; content: ''; width: 2px; height: 18px; background: currentColor; pointer-events: none; }
+.color-range-thumb--minimum::after { top: 31px; }
+.color-range-thumb--maximum::after { bottom: 31px; }
+.color-range-grip { display: flex; align-items: center; justify-content: center; gap: 4px; width: 28px; height: 28px; border: 2px solid currentColor; border-radius: 9px; background: var(--surface); box-shadow: 0 2px 5px #173d701a; }
+.color-range-grip i { width: 2px; height: 10px; border-radius: 1px; background: currentColor; }
+.color-range-thumb:hover .color-range-grip,
+.color-range-thumb.is-dragging .color-range-grip { background: var(--surface); box-shadow: 0 0 0 4px var(--line); }
+.color-range-scale { display: flex; justify-content: space-between; gap: 12px; margin: 0 22px; color: var(--muted); font: 10px ui-monospace, monospace; }
+.color-range-instruction { margin: 12px 0 0; color: var(--muted); font-size: 11px !important; text-align: center; }
+.color-range--disabled { opacity: .55; }
+.color-range-thumb:disabled { opacity: 1; }
+
+.color-range-precise { margin-top: 16px; border: 1px solid var(--line); border-radius: 9px; }
+.color-range-precise summary { min-height: 44px; padding: 12px 14px; color: var(--ink); font-size: 12px; cursor: pointer; }
+.color-range-precise summary:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; border-radius: 8px; }
+.color-range-precise summary span { margin-left: 14px; color: var(--muted); font-size: 11px; }
+.color-range-precise .settings-fields { margin: 4px 14px 18px; gap: 16px; }
+.color-range-save-state { align-self: center; color: var(--muted); font-size: 11px; }

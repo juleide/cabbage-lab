@@ -91,7 +91,6 @@
   flex: 1;
   height: 6px;
   border-radius: 5px;
-  background: linear-gradient(90deg, #e9f4ed, #acd5bb, #60b68c, #f0dd7b, #eda156, #da6650);
 }
 
 .scale-label {
