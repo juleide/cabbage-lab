@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, shell, powerMonitor, powerSaveBlocker } from 'electron'
+import { app, BrowserWindow, ipcMain, shell, powerMonitor, powerSaveBlocker, nativeImage } from 'electron'
 import { mkdir, readFile, writeFile, rename } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -81,8 +81,15 @@ function registerIPC() {
 }
 
 function createWindow() {
+  const icons = app.isPackaged
+    ? join(process.resourcesPath, 'icons')
+    : join(app.getAppPath(), 'resources', 'icons')
+  if (process.platform === 'darwin' && !app.isPackaged) {
+    app.dock?.setIcon(nativeImage.createFromPath(join(icons, 'app.png')))
+  }
   mainWindow = new BrowserWindow({
     width: 1024, height: 600, minWidth: 768, minHeight: 450,
+    icon: join(icons, process.platform === 'win32' ? 'app.ico' : 'app.png'),
     title: '甘蓝检测多功能试验台',
     backgroundColor: { light: '#f3f5f4', dark: '#14191b', blue: '#eaf3ff' }[theme],
     autoHideMenuBar: true,

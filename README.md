@@ -207,6 +207,8 @@ Python 25Hz 模拟源
 
 ## 构建与打包
 
+安装后的应用名称为 **Cabbage Lab**，由 `electron-builder.yml` 中的 `productName` 配置。
+
 ### 构建应用
 
 ```sh
@@ -263,6 +265,27 @@ pnpm exec electron-builder --linux AppImage --x64
 ```
 
 以上命令按各自目标平台使用，建议在目标系统上原生构建。打包配置会包含编译产物及后端资源。正式分发前，还需在目标机器确认启动、数据目录权限、导出和退出行为；签名、公证及自动更新尚未配置。
+
+## 应用图标
+
+图标位于 `resources/icons/`：
+
+| 文件 | 用途 |
+| --- | --- |
+| `app-icon-master.png` | 设计母版，保留原始透明背景图片 |
+| `app.png` | 512 × 512，Linux 及开发运行图标 |
+| `app.ico` | Windows，多尺寸图标 |
+| `app.icns` | macOS，包含最高 1024px 图标 |
+
+窗口与打包配置已使用对应图标；macOS 开发模式另外设置 Dock 图标。普通开发及打包直接使用现有资源，无需重新生成。
+
+如替换母版，可在 macOS 使用系统 `sips` 重新生成：
+
+```sh
+pnpm icons:build
+```
+
+更新主进程图标后需重启应用；桌面已安装程序的图标需重新打包安装后查看。
 
 ## 当前边界
 

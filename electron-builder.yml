@@ -1,19 +1,26 @@
 appId: com.labcontrol.desktop
-productName: Lab Control
+productName: Cabbage Lab
 asar: true
 directories:
+  buildResources: resources/icons
   output: dist/installers
 files:
   - out/**/*
   - package.json
 extraResources:
+  - from: resources/icons
+    to: icons
+    filter: ['app.png', 'app.ico']
   - from: backend/src
     to: backend/src
     filter: ['**/*.py']
 mac:
+  icon: resources/icons/app.icns
   target: [dmg]
 win:
+  icon: resources/icons/app.ico
   target: [nsis]
 linux:
+  icon: resources/icons/app.png
   target: [AppImage]
   category: Science

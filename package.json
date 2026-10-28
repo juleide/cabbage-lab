@@ -17,7 +17,8 @@
     "test:desktop": "playwright test",
     "package": "pnpm build && electron-builder",
     "test": "node --experimental-strip-types --test tests/unit/*.test.mjs",
-    "backend:check": "python3 scripts/controller-smoke.py"
+    "backend:check": "python3 scripts/controller-smoke.py",
+    "icons:build": "node scripts/build-icons.mjs"
   },
   "devDependencies": {
     "@playwright/test": "1.56.0",
