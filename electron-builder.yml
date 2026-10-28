@@ -8,6 +8,8 @@ files:
   - out/**/*
   - package.json
 extraResources:
+  - from: .env
+    to: config/export.env
   - from: resources/icons
     to: icons
     filter: ['app.png', 'app.ico']

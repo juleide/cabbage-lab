@@ -28,7 +28,11 @@ export default function App() {
     setExporting(true)
     try {
       const result = await window.labDesktop.exportRecords(runId)
-      notify(result.saved ? `已导出 ${result.count} 组试验数据` : '已取消导出')
+      if (!result.saved) notify('已取消导出')
+      else if (result.outputKind === 'directory') {
+        const directory = result.outputPath.split(/[\\/]/).pop() || result.outputPath
+        notify(`已导出 ${result.count} 组数据，共 ${result.fileCount} 个 CSV，目录：${directory}`)
+      } else notify(`已导出 ${result.count} 组试验数据`)
     } catch (reason) { notify(`导出失败：${(reason as Error).message}`) }
     finally { exportPending.current = false; setExporting(false) }
   }
