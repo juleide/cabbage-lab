@@ -1,0 +1,131 @@
+.control-body {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+  min-height: 0;
+}
+
+.device {
+  height: 44px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 11px;
+  background: #f7f9f7;
+  border-radius: 6px;
+}
+
+.device>div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.device-name {
+  font-size: 13px;
+}
+
+.device-state {
+  font-size: 9px;
+  color: #a0aba4;
+}
+
+.device-state i {
+  display: none;
+}
+
+.device.on .device-state {
+  color: var(--green);
+}
+
+.switch {
+  border: 0;
+  padding: 0;
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  background: transparent;
+  position: relative;
+}
+
+.switch:before {
+  content: "";
+  position: absolute;
+  left: 3px;
+  top: 11px;
+  width: 38px;
+  height: 22px;
+  border-radius: 20px;
+  background: #d9e2db;
+}
+
+.switch:after {
+  content: "";
+  position: absolute;
+  left: 6px;
+  top: 14px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: white;
+  box-shadow: 0 1px 3px #0001;
+  transition: left .15s;
+}
+
+.switch[aria-checked=true]:before {
+  background: var(--green);
+}
+
+.switch[aria-checked=true]:after {
+  left: 22px;
+}
+
+.pressure {
+  padding: 0 1px;
+}
+
+.pressure-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+}
+
+.pressure-head span {
+  font: 500 16px ui-monospace,Consolas,monospace;
+  color: var(--green);
+}
+
+.pressure-head small {
+  font: 10px sans-serif;
+  color: var(--muted);
+}
+
+.range-ends {
+  display: flex;
+  justify-content: space-between;
+  font-size: 9px;
+  color: #a5afa8;
+}
+
+.control-body>.primary {
+  margin-top: 0;
+  flex-shrink: 0;
+  width: 100%;
+}
+
+.prepare-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1.5fr;
+  gap: 6px;
+  margin-top: auto;
+  flex-shrink: 0;
+}
+
+.prepare-actions .btn {
+  padding: 0;
+  font-size: 12px;
+}

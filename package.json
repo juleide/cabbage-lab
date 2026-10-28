@@ -1,0 +1,38 @@
+{
+  "name": "lab-control-electron",
+  "version": "0.1.0",
+  "description": "甘蓝检测多功能试验台桌面应用",
+  "private": true,
+  "type": "module",
+  "main": "out/main/index.js",
+  "packageManager": "pnpm@11.13.0",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "dev": "electron-vite dev",
+    "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
+    "build": "pnpm typecheck && electron-vite build",
+    "preview": "electron-vite preview",
+    "test:desktop": "playwright test",
+    "package": "pnpm build && electron-builder",
+    "test": "node --experimental-strip-types --test tests/unit/*.test.mjs",
+    "backend:check": "python3 scripts/controller-smoke.py"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.56.0",
+    "@types/node": "24.7.2",
+    "electron": "40.0.0",
+    "electron-builder": "26.9.0",
+    "electron-vite": "4.0.1",
+    "typescript": "5.9.3",
+    "vite": "7.1.7",
+    "@types/react": "19.2.0",
+    "@types/react-dom": "19.2.0",
+    "@vitejs/plugin-react": "5.0.4"
+  },
+  "dependencies": {
+    "react": "19.2.0",
+    "react-dom": "19.2.0"
+  }
+}

@@ -1,0 +1,13 @@
+:root {
+  --green: #197b6c;
+  --ink: #263d36;
+  --muted: #8b9b94;
+  --line: #e7ece9;
+  --bg: #f3f5f4;
+}
+
+:root {
+  color-scheme: light;
+  --surface: #fff;
+  --viewport: #e7ece9;
+}

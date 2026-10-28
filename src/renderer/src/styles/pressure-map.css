@@ -1,0 +1,102 @@
+.map-panel .panel-head {
+  height: 52px;
+  padding: 0 12px;
+  gap: 10px;
+}
+
+.mode-tabs {
+  display: flex;
+  flex-shrink: 0;
+  gap: 2px;
+  padding: 3px;
+  margin: 0;
+  border-radius: 7px;
+  background: #f1f5f2;
+}
+
+.mode-tabs button {
+  min-width: 70px;
+  height: 40px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: #87998c;
+  font-size: 12px;
+}
+
+.mode-tabs button.active {
+  background: var(--surface);
+  color: var(--green);
+  box-shadow: 0 1px 4px #233b2c0a;
+  font-weight: 500;
+}
+
+.heat-area {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  min-height: 0;
+  padding: 12px;
+  gap: 9px;
+}
+
+/* Bound the square by both available dimensions, not a fixed pixel width. */
+.heatmap-stage {
+  display: grid;
+  flex: 1;
+  width: 100%;
+  min-height: 0;
+  place-items: center;
+  container-type: size;
+}
+
+.heat-wrap {
+  position: relative;
+  width: min(100cqw, 100cqh);
+  aspect-ratio: 1;
+}
+
+.heat-wrap canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 6px;
+  image-rendering: pixelated;
+}
+
+.cross {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  color: white;
+  font-size: 19px;
+  opacity: .9;
+  pointer-events: none;
+}
+
+.scale {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  width: 100%;
+  gap: 8px;
+  font: 9px ui-monospace, monospace;
+  color: #8a9c8e;
+}
+
+.gradient {
+  flex: 1;
+  height: 6px;
+  border-radius: 5px;
+  background: linear-gradient(90deg, #e9f4ed, #acd5bb, #60b68c, #f0dd7b, #eda156, #da6650);
+}
+
+.scale-label {
+  flex-shrink: 0;
+  margin: 0;
+  color: #96a398;
+  font-size: 10px;
+}

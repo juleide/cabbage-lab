@@ -1,0 +1,19 @@
+appId: com.labcontrol.desktop
+productName: Lab Control
+asar: true
+directories:
+  output: dist/installers
+files:
+  - out/**/*
+  - package.json
+extraResources:
+  - from: backend/src
+    to: backend/src
+    filter: ['**/*.py']
+mac:
+  target: [dmg]
+win:
+  target: [nsis]
+linux:
+  target: [AppImage]
+  category: Science

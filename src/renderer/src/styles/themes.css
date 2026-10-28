@@ -1,0 +1,340 @@
+[data-theme="dark"] {
+  color-scheme:dark;
+  --bg:#14191b;
+  --surface:#1d2427;
+  --viewport:#0e1214;
+  --ink:#e0e8e5;
+  --muted:#a2b2ab;
+  --line:#34413c;
+  --green:#72d1b2;
+}
+
+[data-theme="dark"] .panel {
+  background:var(--surface);
+}
+
+[data-theme="dark"] .panel-head {
+  border-color:var(--line);
+}
+
+[data-theme="dark"] .mark {
+  background:#253d34;
+}
+
+[data-theme="dark"] .demo {
+  border-color:#43544a;
+  color:#a7b8ad;
+}
+
+[data-theme="dark"] .connection,[data-theme="dark"] .live {
+  color:#9dbca9;
+}
+
+[data-theme="dark"] .device {
+  background:#262f2d;
+}
+
+[data-theme="dark"] .device-state {
+  color:#a0b0a6;
+}
+
+[data-theme="dark"] .device.on .device-state {
+  color:var(--green);
+}
+
+[data-theme="dark"] .switch:before {
+  background:#4b5a52;
+}
+
+[data-theme="dark"] .switch[aria-checked=true]:before {
+  background:#329879;
+}
+
+[data-theme="dark"] .btn {
+  background:#28332e;
+  border-color:#43534a;
+  color:#d1dfd6;
+}
+
+[data-theme="dark"] .btn:hover {
+  background:#34463b;
+}
+
+[data-theme="dark"] .primary {
+  background:#22785f;
+  border-color:#22785f;
+  color:#fff;
+}
+
+[data-theme="dark"] .primary:hover {
+  background:#2b8d70;
+}
+
+[data-theme="dark"] .emergency {
+  background:#3b2527;
+  border-color:#754347;
+  color:#ffaaa2;
+}
+
+[data-theme="dark"] .metric-name,[data-theme="dark"] .database,[data-theme="dark"] .database select {
+  color:#afc1b5;
+}
+
+[data-theme="dark"] .metric-value small,[data-theme="dark"] .range-ends,[data-theme="dark"] .scale,[data-theme="dark"] .scale-label {
+  color:#a1b3a7;
+}
+
+[data-theme="dark"] .mode-tabs {
+  background:#141c18;
+}
+
+[data-theme="dark"] .mode-tabs button {
+  color:#a9b9ae;
+}
+
+[data-theme="dark"] .mode-tabs button.active {
+  background:#304338;
+  color:var(--green);
+  box-shadow:none;
+}
+
+[data-theme="dark"] .stopped .connection,[data-theme="dark"] .stopped .live {
+  color:#ffaaa2;
+}
+
+[data-theme="dark"] dialog {
+  background:var(--surface);
+}
+
+[data-theme="dark"] dialog::backdrop {
+  background:#0009;
+}
+
+[data-theme="dark"] .close {
+  background:#303e35;
+  color:#c2d2c6;
+}
+
+[data-theme="dark"] .modal-text {
+  color:#b1c1b6;
+}
+
+[data-theme="dark"] .log-item time {
+  color:#9fb1a4;
+}
+
+[data-theme="dark"] .toast {
+  background:#d6e8dd;
+  color:#20392c;
+}
+
+[data-theme="dark"] .theme-sun {
+  display:none;
+}
+
+[data-theme="dark"] .theme-moon {
+  display:block;
+}
+
+[data-theme="dark"] .theme-trigger:hover,[data-theme="dark"] .theme-trigger[aria-expanded="true"] {
+  background:#293b31;
+  border-color:#507762;
+}
+
+[data-theme="dark"] .theme-option:hover,[data-theme="dark"] .theme-option:focus-visible {
+  background:#2a3830;
+}
+
+[data-theme="dark"] .theme-option[aria-checked="true"] {
+  background:#294135;
+}
+
+[data-theme="dark"] .theme-menu {
+  box-shadow:0 8px 28px #0005;
+}
+
+
+
+/* 科技蓝：清透蓝底、亮蓝操作色，避免大面积深色造成压迫。 */
+[data-theme="blue"] {
+  color-scheme: light;
+  --bg: #eaf3ff;
+  --surface: #f8fbff;
+  --viewport: #dcecff;
+  --ink: #173d70;
+  --muted: #617fa5;
+  --line: #c6ddf8;
+  --green: #087ce6;
+}
+
+[data-theme="blue"] .panel {
+  background: var(--surface);
+  box-shadow: 0 3px 14px #2674c20a;
+}
+
+[data-theme="blue"] .panel-head {
+  border-color: var(--line);
+}
+
+[data-theme="blue"] .mark {
+  background: #d4eaff;
+}
+
+[data-theme="blue"] .demo {
+  border-color: #b6d5f5;
+  color: #507ba8;
+}
+
+[data-theme="blue"] .connection,
+[data-theme="blue"] .live {
+  color: #3674ad;
+}
+
+[data-theme="blue"] .device {
+  background: #e2efff;
+}
+
+[data-theme="blue"] .device-state {
+  color: #6788ad;
+}
+
+[data-theme="blue"] .device.on .device-state {
+  color: var(--green);
+}
+
+[data-theme="blue"] .switch:before {
+  background: #bed6f0;
+}
+
+[data-theme="blue"] .switch[aria-checked=true]:before {
+  background: #1687ee;
+}
+
+[data-theme="blue"] .btn {
+  background: #f0f7ff;
+  border-color: #b6d5f5;
+  color: #28639c;
+}
+
+[data-theme="blue"] .btn:hover {
+  background: #dceeff;
+}
+
+[data-theme="blue"] .primary {
+  background: #087ce6;
+  border-color: #087ce6;
+  color: #fff;
+}
+
+[data-theme="blue"] .primary:hover {
+  background: #066bd0;
+}
+
+[data-theme="blue"] .emergency {
+  background: #fff0ed;
+  border-color: #efc3bc;
+  color: #b64238;
+}
+
+[data-theme="blue"] .metric-name,
+[data-theme="blue"] .database,
+[data-theme="blue"] .database select {
+  color: #5278a3;
+}
+
+[data-theme="blue"] .metric-value small,
+[data-theme="blue"] .range-ends,
+[data-theme="blue"] .scale,
+[data-theme="blue"] .scale-label {
+  color: #6483a8;
+}
+
+[data-theme="blue"] .mode-tabs {
+  background: #e0edff;
+}
+
+[data-theme="blue"] .mode-tabs button {
+  color: #567da8;
+}
+
+[data-theme="blue"] .mode-tabs button.active {
+  background: #087ce6;
+  color: #fff;
+  box-shadow: 0 2px 5px #087ce62b;
+}
+
+[data-theme="blue"] .stopped .connection,
+[data-theme="blue"] .stopped .live {
+  color: #b64238;
+}
+
+[data-theme="blue"] dialog {
+  background: var(--surface);
+}
+
+[data-theme="blue"] dialog::backdrop {
+  background: #173d7052;
+}
+
+[data-theme="blue"] .close {
+  background: #e0edff;
+  color: #4674a6;
+}
+
+[data-theme="blue"] .modal-text {
+  color: #5278a3;
+}
+
+[data-theme="blue"] .log-item time {
+  color: #6483a8;
+}
+
+[data-theme="blue"] .toast {
+  background: #1764b0;
+  color: #fff;
+}
+
+[data-theme="blue"] .theme-trigger:hover,
+[data-theme="blue"] .theme-trigger[aria-expanded="true"] {
+  background: #dceeff;
+  border-color: #8ebeee;
+}
+
+[data-theme="blue"] .theme-option:hover,
+[data-theme="blue"] .theme-option:focus-visible {
+  background: #e5f1ff;
+}
+
+[data-theme="blue"] .theme-option[aria-checked="true"] {
+  background: #dceeff;
+}
+
+[data-theme="blue"] .theme-menu {
+  box-shadow: 0 8px 28px #2674c21a;
+}
+
+[data-theme="blue"] .theme-sun {
+  display: none;
+}
+
+[data-theme="blue"] .theme-tech {
+  display: block;
+}
+
+[data-theme="blue"] .dot {
+  background: #1687ee;
+}
+
+[data-theme="blue"] .stopped .dot {
+  background: #c34f43;
+}
+
+[data-theme="blue"] input[type=range] {
+  accent-color: #087ce6;
+}
+
+[data-theme="blue"] button:focus-visible,
+[data-theme="blue"] select:focus-visible,
+[data-theme="blue"] input:focus-visible {
+  outline-color: #1687ee;
+}

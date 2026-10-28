@@ -1,0 +1,92 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 14px/1.4 "PingFang SC","Microsoft YaHei",sans-serif;
+}
+
+button,input,select {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+button:disabled,input:disabled,select:disabled {
+  opacity: .4;
+  cursor: not-allowed;
+}
+
+button:focus-visible,select:focus-visible,input:focus-visible {
+  outline: 3px solid #77b9aa;
+  outline-offset: 3px;
+}
+
+svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vertical-align: middle;
+}
+
+.btn {
+  height: 44px;
+  padding: 0 16px;
+  border: 1px solid #dfe6e1;
+  border-radius: 7px;
+  background: white;
+  color: #536b5e;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.btn:hover {
+  background: #edf4ef;
+}
+
+.btn svg {
+  margin-right: 6px;
+  width: 16px;
+}
+
+input[type=range] {
+  display: block;
+  width: 100%;
+  height: 28px;
+  margin: 0;
+  accent-color: var(--green);
+  cursor: pointer;
+}
+
+.primary {
+  height: 48px;
+  min-height: 48px;
+  background: var(--green);
+  border-color: var(--green);
+  color: white;
+  font-size: 14px;
+}
+
+.primary:hover {
+  background: #14695c;
+}
+
+.full {
+  width: 100%;
+}
+
+html,body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}

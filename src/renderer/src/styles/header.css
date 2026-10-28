@@ -1,0 +1,107 @@
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.mark {
+  color: var(--green);
+  background: #e4eee9;
+  border-radius: 9px;
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+}
+
+.mark svg {
+  width: 23px;
+  height: 23px;
+}
+
+h1 {
+  font-size: 19px;
+  font-weight: 600;
+  margin: 0;
+  letter-spacing: .5px;
+}
+
+.demo {
+  font-size: 10px;
+  border: 1px solid #dbe3de;
+  color: #92a096;
+  border-radius: 4px;
+  padding: 2px 6px;
+  white-space: nowrap;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+
+.connection {
+  font-size: 12px;
+  color: #678775;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #429777;
+  display: inline-block;
+}
+
+.emergency {
+  height: 44px;
+  padding: 0 20px;
+  border: 1px solid #ecc7c2;
+  background: #fff0ee;
+  color: #bd4b44;
+  border-radius: 7px;
+  font-weight: 600;
+}
+
+.emergency svg {
+  margin-right: 7px;
+}
+
+.stopped .dot {
+  background: #bc5049;
+}
+
+/* Icon-only entry with a touch-friendly hit area and no button chrome. */
+.settings-icon {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  place-items: center;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  transition: color .15s, background .15s;
+}
+
+.settings-icon svg {
+  width: 23px;
+  height: 23px;
+}
+
+.settings-icon:hover {
+  background: var(--surface);
+  color: var(--green);
+}

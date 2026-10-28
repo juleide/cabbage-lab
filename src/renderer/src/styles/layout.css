@@ -1,0 +1,77 @@
+.app {
+  position: absolute;
+  inset: 0 auto auto 0;
+  width: 1024px;
+  height: 600px;
+  transform: scale(var(--screen-scale,1));
+  transform-origin: top left;
+  padding: 14px 20px;
+  display: grid;
+  grid-template-rows: 56px minmax(0,1fr);
+  gap: 14px;
+  margin: 0;
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: 250px minmax(300px,1fr) minmax(290px,.92fr);
+  gap: 14px;
+  min-height: 0;
+}
+
+.panel {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.panel-head {
+  height: 48px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 17px;
+  border-bottom: 1px solid #f0f3f1;
+}
+
+.panel-title {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.right-col {
+  display: grid;
+  grid-template-rows: minmax(0,1fr) auto;
+  gap: 12px;
+  min-height: 0;
+}
+
+.viewport {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  overflow: auto;
+  overscroll-behavior: contain;
+  background: #e7ece9;
+}
+
+.screen-space {
+  position: relative;
+  flex: none;
+  margin: auto;
+  width: 1024px;
+  height: 600px;
+}
+
+.app {
+  background: var(--bg);
+}
+
+.viewport {
+  background: var(--viewport);
+}

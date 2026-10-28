@@ -1,0 +1,80 @@
+.toast {
+  position: fixed;
+  bottom: 78px;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: 90vw;
+  padding: 12px 20px;
+  background: #294638;
+  color: white;
+  border-radius: 8px;
+  font-size: 13px;
+  box-shadow: 0 6px 24px #203a2c20;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .2s;
+  z-index: 5;
+}
+
+.toast.show {
+  opacity: 1;
+}
+
+dialog {
+  width: min(500px,90vw);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 24px;
+  color: var(--ink);
+  box-shadow: 0 16px 70px #203a2c25;
+}
+
+dialog::backdrop {
+  background: #213d304d;
+  backdrop-filter: blur(3px);
+}
+
+.modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 18px;
+}
+
+.modal-head h3 {
+  margin: 0;
+  font-size: 17px;
+}
+
+.close {
+  height: 36px;
+  width: 36px;
+  border: 0;
+  background: #f2f5f2;
+  border-radius: 6px;
+  font-size: 22px;
+  color: #718775;
+}
+
+.modal-text {
+  font-size: 13px;
+  line-height: 1.9;
+  color: #768a7b;
+}
+
+.log-list {
+  max-height: 300px;
+  overflow: auto;
+}
+
+.log-item {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 12px;
+}
+
+.log-item time {
+  font: 11px monospace;
+  color: #9aa89d;
+  margin-right: 12px;
+}
