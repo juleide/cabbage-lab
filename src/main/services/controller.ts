@@ -108,7 +108,7 @@ export class ControllerProcess extends EventEmitter {
               this.pending.delete(message.id)
               if (message.ok) request.resolve(message.result)
               else request.reject(new Error(message.error?.message || '控制操作失败'))
-            } else if (message.type === 'event' && ['state', 'config', 'log'].includes(message.event)) {
+            } else if (message.type === 'event' && ['state', 'config', 'log', 'pressure.frame'].includes(message.event)) {
               this.emit('event', { event: message.event, data: message.data } as ControllerEvent)
             } else throw new Error('无效的控制端消息')
           } catch (error) {

@@ -18,18 +18,21 @@ class Outbox:
         self.condition = threading.Condition()
         self.messages = deque()
         self.latest_state = None
+        self.latest_frame = None
         self.closed = False
         self.failed = threading.Event()
         self.thread = threading.Thread(target=self.run, daemon=True, name='ipc-writer')
         self.thread.start()
 
-    def put(self, message, state=False):
+    def put(self, message, state=False, frame=False):
         # Serialize before the mutable controller state can change again.
         line = json.dumps({'v': 1, 'sessionId': self.session, **message}, ensure_ascii=False, allow_nan=False) + '\n'
         if len(line.encode('utf-8')) > MAX_LINE:
             raise RuntimeError('控制进程消息超限')
         with self.condition:
-            if state:
+            if frame:
+                self.latest_frame = line
+            elif state:
                 self.latest_state = line
             else:
                 if len(self.messages) >= 256:
@@ -38,17 +41,19 @@ class Outbox:
             self.condition.notify()
 
     def event(self, kind, data):
-        self.put({'type': 'event', 'event': kind, 'data': data}, state=kind == 'state')
+        self.put({'type': 'event', 'event': kind, 'data': data}, state=kind == 'state', frame=kind == 'pressure.frame')
 
     def run(self):
         try:
             while True:
                 with self.condition:
-                    self.condition.wait_for(lambda: self.messages or self.latest_state or self.closed)
+                    self.condition.wait_for(lambda: self.messages or self.latest_state or self.latest_frame or self.closed)
                     if self.messages:
                         line = self.messages.popleft()
                     elif self.latest_state:
                         line, self.latest_state = self.latest_state, None
+                    elif self.latest_frame:
+                        line, self.latest_frame = self.latest_frame, None
                     else:
                         break
                 sys.stdout.write(line)
@@ -106,6 +111,7 @@ def serve(root):
             if current - heartbeat > 10:
                 logging.error('父进程心跳超时，停止控制端')
                 break
+            controller.publish_array()
             if current >= next_tick:
                 controller.tick()
                 next_tick = current + controller.config.value['sampleIntervalMs'] / 1000
@@ -127,6 +133,8 @@ def serve(root):
                     result = {'online': True}
                 else:
                     result = controller.request(method, params)
+                    if method == 'config.update':
+                        next_tick = time.monotonic() + controller.config.value['sampleIntervalMs'] / 1000
                 outbox.put({'type': 'response', 'id': request_id, 'ok': True, 'result': result})
             except ValueError as exc:
                 outbox.put({'type': 'response', 'id': request_id, 'ok': False, 'error': {'code': 'INVALID_OPERATION', 'message': str(exc)}})

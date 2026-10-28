@@ -1,4 +1,5 @@
 export type DeviceId = 'motor1' | 'motor2' | 'lift'
+export type MapMode = 'press' | 'grip'
 export type Theme = 'light' | 'dark' | 'blue'
 export type RecordLibrary = 'cabbage_test_2026' | 'cabbage_test_archive'
 
@@ -19,7 +20,26 @@ export interface LabConfig {
   recordPrefix: string
   defaultLibrary: RecordLibrary
 }
+export interface PressureStatus {
+  mode: MapMode
+  generation: number
+  paused: boolean
+  error: string | null
+}
+export interface PressureFrame {
+  sequence: number
+  deviceFrame: number
+  capturedAt: string
+  width: 64
+  height: 64
+  values: number[]
+  mode: MapMode
+  generation: number
+  source: 'simulation'
+  stats: { validFrames: number; crcErrors: number; droppedFrames: number; duplicateRows: number }
+}
 export interface LabState {
+  array: PressureStatus
   devices: Record<DeviceId, boolean>
   initialized: boolean
   running: boolean
@@ -33,6 +53,7 @@ export interface LabState {
   sampleCount: number
 }
 export interface Snapshot {
+  pressureFrame: PressureFrame | null
   state: LabState
   config: LabConfig
   configError: string | null
@@ -51,10 +72,11 @@ export type DeviceCommand =
   | { type: 'pressure'; value: number }
   | { type: 'database'; value: string }
 
-export type ControllerMethod = 'state.get' | 'device.command' | 'config.get' | 'config.update' | 'logs.list' | 'records.list'
-export const rendererMethods: readonly string[] = ['state.get', 'device.command', 'config.get', 'config.update', 'logs.list', 'records.list']
+export type ControllerMethod = 'state.get' | 'device.command' | 'config.get' | 'config.update' | 'logs.list' | 'records.list' | 'pressure.mode'
+export const rendererMethods: readonly string[] = ['state.get', 'device.command', 'config.get', 'config.update', 'logs.list', 'records.list', 'pressure.mode']
 
 export type ControllerEvent =
+  | { event: 'pressure.frame'; data: PressureFrame }
   | { event: 'ready'; data: Snapshot }
   | { event: 'state'; data: LabState }
   | { event: 'config'; data: LabConfig }

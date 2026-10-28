@@ -34,7 +34,7 @@ export function Dashboard({ state, online, busy, exporting, error, onCommand, on
       <DeviceControlPanel state={state} online={online} busy={busy} onCommand={onCommand} />
       <MetricsPanel values={state.values} stopped={state.stopped} online={online} />
       <div className="right-col">
-        <PressureMapPanel tick={state.tick} active={online && !state.stopped && !state.zero} />
+        <PressureMapPanel />
         <DataActionsPanel database={state.database} running={state.running} online={online} idle={idle}
           exporting={exporting} onDatabaseChange={value => onCommand({ type: 'database', value })}
           onExport={onExport} onLogs={onLogs} />

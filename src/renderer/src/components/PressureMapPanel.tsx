@@ -1,9 +1,10 @@
-import { useRef, useState } from 'react'
+import { useRef } from 'react'
 import { PressureHeatmap } from './PressureHeatmap'
-import type { MapMode } from '../domain/types'
+import { usePressureArray } from '../hooks/usePressureArray'
 
-export function PressureMapPanel({ tick, active }: { tick: number; active: boolean }) {
-  const [mode, setMode] = useState<MapMode>('press')
+export function PressureMapPanel() {
+  const { latest, view, setMode } = usePressureArray()
+  const mode = view.mode
   const tabs = useRef<(HTMLButtonElement | null)[]>([])
 
   return (
@@ -18,6 +19,7 @@ export function PressureMapPanel({ tick, active }: { tick: number; active: boole
               id={`mode-${value}`}
               className={mode === value ? 'active' : ''}
               role="tab"
+              disabled={!view.online || view.switching}
               aria-selected={mode === value}
               aria-controls="pressure-map"
               tabIndex={mode === value ? 0 : -1}
@@ -39,12 +41,11 @@ export function PressureMapPanel({ tick, active }: { tick: number; active: boole
       <div className="heat-area" id="pressure-map" role="tabpanel" aria-labelledby={`mode-${mode}`}>
         <div className="heatmap-stage">
           <div className="heat-wrap">
-            <PressureHeatmap mode={mode} frame={Math.floor(tick / 3)} active={active} />
-            <span className="cross">+</span>
+            <PressureHeatmap latest={latest} view={view} />
           </div>
         </div>
         <div className="scale"><span>0</span><div className="gradient" /><span>100</span></div>
-        <div className="scale-label">压力 / kPa</div>
+        <div className="scale-label">相对强度 / % · 模拟阵列</div>
       </div>
     </section>
   )

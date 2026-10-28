@@ -40,7 +40,7 @@ export function useController() {
       setError('')
     }
     const unsubscribe = api.subscribe(event => {
-      if (!live) return
+      if (!live || event.event === 'pressure.frame') return
       revision++
       switch (event.event) {
         case 'ready': epoch++; apply(event.data); break

@@ -69,10 +69,62 @@ class Client:
         assert self.child.returncode == 0, self.child.stderr.read()
 
 
+# Short parser checks in the existing smoke command, not a separate test suite.
+sys.path.insert(0, str(ROOT / 'backend' / 'src'))
+from lab_controller.array.protocol import FrameAssembler, RowDecoder, simulation_crc
+from lab_controller.array.acquisition import verify_simulated
+from lab_controller.array.simulated import make_packets
+
+assert simulation_crc(b'123456789') == 0x29B1
+binary = make_packets(255, 'press', 0, False)
+decoder = RowDecoder(verify_simulated)
+rows = []
+for offset in range(0, len(binary), 173):
+    rows.extend(decoder.feed((b'noise' if offset == 0 else b'') + binary[offset:offset + 173]))
+assert len(rows) == 64 and len(rows[0].values) == 64
+# Documented wire permutation must be undone, not drawn in arrival order.
+for index in range(64):
+    column = (index % 8) * 8 + index // 8
+    assert rows[0].values[column] == int.from_bytes(binary[6 + index * 2:8 + index * 2], 'big')
+assembler = FrameAssembler()
+assert assembler.feed(rows[0], 0) is None
+assert assembler.feed(rows[0], 0.01) is None and assembler.duplicate_rows == 1
+for row in reversed(rows[1:]):
+    values = assembler.feed(row, 0.02)
+assert len(values) == 4096
+wrapped = list(decoder.feed(make_packets(0, 'grip', 0, False)))
+for row in wrapped:
+    next_values = assembler.feed(row, 0.04)
+assert len(next_values) == 4096 and assembler.valid_frames == 2
+broken = bytearray(binary[:136])
+broken[10] ^= 1
+assert not list(decoder.feed(broken)) and decoder.crc_errors == 1
+partial = FrameAssembler()
+partial.feed(rows[0], 0)
+partial.expire(0.6)
+assert partial.dropped_frames == 1
+assert partial.feed(rows[1], 0.61) is None
+
 with tempfile.TemporaryDirectory(prefix='lab-controller-') as data:
     client = Client(data)
     try:
         assert not client.initial['state']['running']
+        frame_event = client.wait(lambda message: message.get('event') == 'pressure.frame')
+        assert len(frame_event['data']['values']) == 4096
+        assert frame_event['data']['source'] == 'simulation'
+        # Array updates are independent of slow scalar sampling.
+        slow = {**client.initial['config'], 'sampleIntervalMs': 5000}
+        client.request('config.update', {'config': slow})
+        before = time.monotonic()
+        client.wait(lambda message: message.get('event') == 'pressure.frame')
+        assert time.monotonic() - before < 1
+        status = client.request('pressure.mode', {'mode': 'grip'})
+        frame = client.wait(lambda message: message.get('event') == 'pressure.frame'
+                            and message['data']['generation'] == status['generation'])['data']
+        assert frame['mode'] == 'grip'
+        client.command('zero')
+        client.wait(lambda message: message.get('event') == 'pressure.frame'
+                    and all(value == 0 for value in message['data']['values']))
         config = {**client.initial['config'], 'defaultPressure': 0.42, 'recordPrefix': 'LAB'}
         client.request('config.update', {'config': config})
         client.command('initialize')
@@ -91,6 +143,7 @@ with tempfile.TemporaryDirectory(prefix='lab-controller-') as data:
         client.command('emergency')
         state = client.request('state.get')['state']
         assert state['stopped'] and not state['running'] and not any(state['devices'].values())
+        assert state['array']['paused']
         try:
             client.command('toggle', device='motor1')
             raise AssertionError('急停后不应启动执行机构')
@@ -107,4 +160,4 @@ with tempfile.TemporaryDirectory(prefix='lab-controller-') as data:
         assert client.request('records.list')[0]['id'] == snapshot['runId']
     finally:
         client.close()
-print('PASS: Python IPC、模拟试验、配置校验、急停和 SQLite 重启保留')
+print('PASS: 阵列拆包/CRC/重排/循环、独立刷新、模式/置零/暂停、IPC 与 SQLite 保留')

@@ -2,7 +2,9 @@ import copy
 import logging
 import math
 import uuid
+import time
 from datetime import datetime
+from ..array.acquisition import ArrayAcquisition
 from ..devices.simulated import DEVICE_NAMES, SimulatedDevice
 from ..storage.config import ConfigStore, LIBRARIES
 from ..storage.records import RecordStore
@@ -30,12 +32,17 @@ class Controller:
             'runId': None, 'sampleCount': 0,
         }
         self.select_library(self.state['database'])
+        self.array = ArrayAcquisition()
+        self.last_array_sequence = -1
+        self.next_array_publish = 0.0
         self.refresh()
         self.log('Python 控制端已启动 · 模拟设备待机，不自动启动执行机构')
         if self.config.error:
             self.log(self.config.error)
 
     def refresh(self):
+        self.array.configure(zero=self.state['zero'], paused=self.state['stopped'])
+        self.state['array'] = self.array.status()
         self.state['devices'] = self.device.outputs.copy()
         self.state['values'] = (dict.fromkeys(('normal', 'area', 'friction', 'speed', 'coefficient', 'pressure'), 0)
                                 if self.state['stopped'] else self.device.read(
@@ -43,7 +50,8 @@ class Controller:
 
     def snapshot(self):
         return {'state': copy.deepcopy(self.state), 'config': copy.deepcopy(self.config.value),
-                'configError': self.config.error, 'logs': self.records.logs()}
+                'configError': self.config.error, 'logs': self.records.logs(),
+                'pressureFrame': self.array.snapshot()}
 
     def publish(self):
         self.refresh()
@@ -76,6 +84,20 @@ class Controller:
             self.state['stopped'] = True
         self.log(reason)
         self.publish()
+
+    def publish_array(self):
+        current = time.monotonic()
+        if current < self.next_array_publish:
+            return
+        self.next_array_publish = current + 0.1
+        frame = self.array.snapshot()
+        status = self.array.status()
+        if self.state['array'] != status:
+            self.state['array'] = status
+            self.emit('state', self.state)
+        if frame and frame['sequence'] != self.last_array_sequence:
+            self.last_array_sequence = frame['sequence']
+            self.emit('pressure.frame', frame)
 
     def tick(self):
         if self.state['stopped']:
@@ -163,6 +185,11 @@ class Controller:
             return self.snapshot()
         if method == 'device.command':
             return self.command(params)
+        if method == 'pressure.mode':
+            require(set(params) == {'mode'} and params['mode'] in ('press', 'grip'), '无效的阵列模式')
+            self.array.configure(mode=params['mode'])
+            self.publish()
+            return self.array.status()
         if method == 'config.get':
             return {'config': self.config.value, 'error': self.config.error}
         if method == 'config.update':
@@ -200,4 +227,7 @@ class Controller:
         try:
             self.stop('控制端关闭：停止试验和全部模拟执行机构')
         finally:
-            self.records.close()
+            try:
+                self.array.close()
+            finally:
+                self.records.close()
