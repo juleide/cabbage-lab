@@ -12,7 +12,7 @@ async function enter(page: Page) {
 async function login(page: Page, password = 'auth-desktop-tests-only') {
   await page.getByLabel('用户名', { exact: true }).fill('test-engineer')
   await page.getByLabel('密码', { exact: true }).fill(password)
-  await page.getByRole('button', { name: '验证并进入', exact: true }).click()
+  await page.getByRole('button', { name: '进入', exact: true }).click()
 }
 async function denied(page: Page) {
   for (const method of ['hardware.get', 'hardware.save', 'hardware.check']) {
@@ -90,7 +90,7 @@ test('missing credentials fail closed; five failures impose cooldown across refr
       await page.evaluate(() => window.labDesktop!.loginDeviceDebug('test-engineer', 'wrong-test-password'))
     }
     await expect(page.locator('.device-auth-page').getByRole('status')).toContainText('秒后重试')
-    await expect(page.getByRole('button', { name: '验证并进入', exact: true })).toBeDisabled()
+    await expect(page.getByRole('button', { name: '进入', exact: true })).toBeDisabled()
     await page.reload()
     await page.getByRole('button', { name: '设置', exact: true }).click()
     await page.getByRole('button', { name: '设备连接', exact: true }).click()
@@ -110,7 +110,7 @@ test('missing credentials fail closed; five failures impose cooldown across refr
     const page = await other.firstWindow()
     await enter(page)
     await expect(page.locator('.device-auth-page').getByRole('status')).toContainText('未配置研发调试凭据')
-    await expect(page.getByRole('button', { name: '验证并进入', exact: true })).toBeDisabled()
+    await expect(page.getByRole('button', { name: '进入', exact: true })).toBeDisabled()
     await denied(page)
   } finally {
     await other.evaluate(({ BrowserWindow }) => { for (const window of BrowserWindow.getAllWindows()) window.destroy() }).catch(() => {})

@@ -44,7 +44,13 @@ Python 控制进程
 | pnpm | 11.13.0 |
 | Python | 3.10+ |
 
-Python 后端当前仅使用标准库，无需安装额外的 pip 依赖。
+模拟试验仅使用 Python 标准库。设备连接页的串口扫描需要 PySerial，在 `LAB_PYTHON` 指定的解释器环境安装：
+
+```sh
+python3 -m pip install -r backend/requirements.txt
+```
+
+扫描仅枚举系统端口，不会打开端口或发送指令。依赖缺失会明确提示，仍可手动填写端口。配置保存在数据目录的 `config/hardware.json`，保存不连接设备，也不改变当前模拟试验。手工编辑前请停止试验并退出程序，编辑后重新启动加载。
 
 ### 安装与启动
 

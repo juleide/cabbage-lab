@@ -17,6 +17,16 @@ export interface HardwareConfig {
 }
 export interface HardwareSnapshot { config: HardwareConfig; error: string | null; drivers: { available: false; message: string } }
 export interface HardwareCheck { errors: string[] }
+export interface SerialPortInfo {
+  port: string
+  description: string
+  manufacturer: string | null
+  vid: number | null
+  pid: number | null
+  serialNumber: string | null
+  location: string | null
+}
+export interface SerialPortScan { ports: SerialPortInfo[] }
 export type HardwareSection = 'motors' | 'lift' | 'array' | 'tension' | 'displacement'
 
 function finite(value: number) {

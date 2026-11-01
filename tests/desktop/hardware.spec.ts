@@ -6,9 +6,49 @@ import { join } from 'node:path'
 async function unlock(page: Page) {
   await page.getByLabel('用户名', { exact: true }).fill('test-engineer')
   await page.getByLabel('密码', { exact: true }).fill('hardware-tests-only')
-  await page.getByRole('button', { name: '验证并进入', exact: true }).click()
+  await page.getByRole('button', { name: '进入', exact: true }).click()
   await expect(page.getByRole('heading', { name: '设备连接', exact: true })).toBeVisible()
 }
+
+test('serial scan presents ports, preserves drafts and distinguishes empty and failed scans', async () => {
+  const data = await mkdtemp(join(tmpdir(), 'lab-ports-'))
+  const app = await electron.launch({ args: ['.', `--user-data-dir=${join(data, 'ui')}`], env: { ...process.env, LAB_DATA_DIR: data, LAB_DEVICE_DEBUG_USERNAME: 'test-engineer', LAB_DEVICE_DEBUG_PASSWORD: 'hardware-tests-only' } })
+  try {
+    const page = await app.firstWindow()
+    await expect(page.getByText('设备已就绪', { exact: true })).toBeVisible()
+    await page.getByRole('button', { name: '设置', exact: true }).click()
+    await page.getByRole('button', { name: '设备连接', exact: true }).click()
+    await unlock(page)
+    await page.getByRole('button', { name: '执行机构', exact: true }).click()
+    await page.getByLabel('共用串口', { exact: true }).fill('COM99')
+    await app.evaluate(({ ipcMain }) => {
+      let count = 0
+      ipcMain.removeHandler('controller:request')
+      ipcMain.handle('controller:request', (_event, method) => {
+        if (method !== 'hardware.ports.list') throw new Error('Unexpected test request')
+        count++
+        if (count === 3) throw new Error('串口扫描不可用：缺少依赖')
+        return { ports: count === 2 ? [] : [{ port: 'COM7', description: 'Test adapter', manufacturer: null, vid: 123, pid: 456, serialNumber: null, location: null }] }
+      })
+    })
+    await page.getByRole('button', { name: '扫描', exact: true }).click()
+    await expect(page.getByRole('status').filter({ hasText: '发现 1 个串口' })).toBeVisible()
+    await expect(page.getByLabel('共用串口', { exact: true })).toHaveValue('COM99')
+    await expect(page.getByText('所填端口不在本次扫描结果中', { exact: false })).toBeVisible()
+    await page.getByLabel('RS485 · Modbus RTU扫描结果').selectOption('COM7')
+    await expect(page.getByLabel('共用串口', { exact: true })).toHaveValue('COM7')
+    await page.getByRole('button', { name: '扫描', exact: true }).click()
+    await expect(page.getByRole('status').filter({ hasText: '发现 0 个串口' })).toBeVisible()
+    await expect(page.getByLabel('共用串口', { exact: true })).toHaveValue('COM7')
+    await page.getByRole('button', { name: '扫描', exact: true }).click()
+    await expect(page.getByRole('alert').filter({ hasText: '缺少依赖' })).toBeVisible()
+    await expect(page.getByLabel('共用串口', { exact: true })).toHaveValue('COM7')
+  } finally {
+    await app.evaluate(({ BrowserWindow }) => { for (const window of BrowserWindow.getAllWindows()) window.destroy() }).catch(() => {})
+    await app.close()
+    await rm(data, { recursive: true, force: true })
+  }
+})
 
 test('hardware draft persistence, bindings, module selection and unsaved navigation', async () => {
   const data = await mkdtemp(join(tmpdir(), 'lab-hardware-'))

@@ -6,6 +6,7 @@ import time
 from datetime import datetime
 from ..array.acquisition import ArrayAcquisition
 from ..devices.simulated import DEVICE_NAMES, SimulatedDevice
+from ..devices.ports import list_ports
 from ..storage.config import ConfigStore, LIBRARIES
 from ..storage.records import RecordStore
 from ..storage.hardware import HardwareStore, validate as validate_hardware
@@ -186,6 +187,9 @@ class Controller:
 
     def request(self, method, params):
         require(isinstance(params, dict), '请求参数必须是对象')
+        if method == 'hardware.ports.list':
+            require(not params, '该请求不接受参数')
+            return list_ports()
         if method == 'state.get':
             return self.snapshot()
         if method == 'device.command':

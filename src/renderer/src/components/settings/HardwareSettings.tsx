@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { useController } from '../../hooks/useController'
-import type { HardwareConfig, HardwareSnapshot, HardwareCheck, HardwareSection, SerialSettings } from '../../../../shared/hardware'
+import type { HardwareConfig, HardwareSnapshot, HardwareCheck, HardwareSection, SerialSettings, SerialPortInfo, SerialPortScan } from '../../../../shared/hardware'
 import '../../styles/hardware.css'
 
 type Tab = 'overview' | 'actuators' | 'array' | 'sensors'
@@ -16,6 +16,10 @@ export function HardwareSettings({ controller, onDirtyChange, unlocked }: { unlo
   const [storeError, setStoreError] = useState('')
   const [capability, setCapability] = useState('')
   const [working, setWorking] = useState(false)
+  const [ports, setPorts] = useState<SerialPortInfo[] | null>(null)
+  const [scanning, setScanning] = useState(false)
+  const [scanError, setScanError] = useState('')
+  const scanGeneration = useRef(0)
   const [tab, setTab] = useState<Tab>('overview')
   const [actuator, setActuator] = useState<'motors' | 'lift'>('motors')
   const [sensor, setSensor] = useState<'tension' | 'displacement'>('tension')
@@ -49,11 +53,25 @@ export function HardwareSettings({ controller, onDirtyChange, unlocked }: { unlo
     finally { if (id === generation.current) setWorking(false) }
   }
   useEffect(() => {
+    setScanning(false); setPorts(null); setScanError('')
     if (unlocked && online && (!config || !dirtyRef.current)) void load()
-    return () => { generation.current++ }
+    return () => { generation.current++; scanGeneration.current++ }
     // Keep unsaved drafts across controller disconnects; do not reload over user edits.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [online, unlocked])
+  async function scan() {
+    if (scanning || !online || !unlocked) return
+    const id = ++scanGeneration.current
+    setScanning(true); setScanError(''); setPorts(null)
+    try {
+      const value = await request<SerialPortScan>('hardware.ports.list')
+      if (id === scanGeneration.current) setPorts(value.ports)
+    } catch (reason) {
+      if (id === scanGeneration.current) setScanError((reason as Error).message)
+    } finally {
+      if (id === scanGeneration.current) setScanning(false)
+    }
+  }
   function edit(next: HardwareConfig) { revision.current++; setConfig(next); setResult(null); setChecked('') }
   function patch<K extends HardwareSection>(key: K, value: Partial<HardwareConfig[K]>) {
     if (config) edit({ ...config, [key]: { ...config[key], ...value } })
@@ -63,7 +81,7 @@ export function HardwareSettings({ controller, onDirtyChange, unlocked }: { unlo
     setWorking(true)
     try {
       const value = await request<HardwareConfig>('hardware.save', { config })
-      setSaved(JSON.stringify(value)); notify('设备连接草稿已保存；未连接真实硬件')
+      setConfig(value); setSaved(JSON.stringify(value)); notify('设备连接草稿已保存；未连接真实硬件')
     } catch (reason) { setResult([(reason as Error).message]) }
     finally { setWorking(false) }
   }
@@ -83,9 +101,9 @@ export function HardwareSettings({ controller, onDirtyChange, unlocked }: { unlo
   }
   function serial(value: SerialSettings, change: (value: SerialSettings) => void, title: string, shared = false) {
     return <article className="hw-box"><h4>{title}<span>未连接</span></h4><div className="hw-grid">
-      <label>{shared ? '共用串口' : '串口'}<div className="hw-port"><input aria-label={shared ? '共用串口' : '串口'} value={value.port} placeholder="COM3 或 /dev/ttyUSB0" onChange={e => change({ ...value, port: e.target.value })} /><button type="button" onClick={() => notify('当前版本未接入串口枚举驱动，请手动填写端口')}>扫描</button></div></label>
+      <label>{shared ? '共用串口' : '串口'}<div className="hw-port"><input aria-label={shared ? '共用串口' : '串口'} value={value.port} placeholder="COM3 或 /dev/ttyUSB0" onChange={e => change({ ...value, port: e.target.value })} /><button type="button" disabled={!online || scanning} onClick={() => void scan()}>{scanning ? '扫描中…' : '扫描'}</button></div></label>
       <label>波特率<input type="number" list="hw-baud-rates" value={value.baud ?? ''} min="1" max="4000000" step="1" placeholder="选择或输入" onChange={e => change({ ...value, baud: e.target.value === '' ? null : Number(e.target.value) })} /></label>
-    </div><details><summary>高级通信参数</summary><div className="hw-grid">
+    </div>{ports && <><label>扫描结果<select aria-label={title + '扫描结果'} value="" onChange={e => { if (e.target.value) change({ ...value, port: e.target.value }) }}><option value="">{ports.length ? '选择端口（也可手动填写）' : '未发现串口，可刷新或手动填写'}</option>{ports.map(port => <option key={port.port} value={port.port}>{port.port} · {port.description}{port.serialNumber ? ` · ${port.serialNumber}` : ''}</option>)}</select></label>{value.port.trim() && !ports.some(port => port.port === value.port.trim() || (/^com\d+$/i.test(port.port) && port.port.toUpperCase() === value.port.trim().toUpperCase())) && <p className="hw-note">所填端口不在本次扫描结果中；配置已保留，请检查连接或手动确认。</p>}</>}<details><summary>高级通信参数</summary><div className="hw-grid">
       <label>数据位<select value={value.bits} onChange={e => change({ ...value, bits: Number(e.target.value) as SerialSettings['bits'] })}>{[8, 7, 6, 5].map(n => <option key={n}>{n}</option>)}</select></label>
       <label>校验位<select value={value.parity} onChange={e => change({ ...value, parity: e.target.value as SerialSettings['parity'] })}><option value="N">无校验 N</option><option value="E">偶校验 E</option><option value="O">奇校验 O</option></select></label>
       <label>停止位<select value={value.stop} onChange={e => change({ ...value, stop: Number(e.target.value) as 1 | 2 })}><option>1</option><option>2</option></select></label>
@@ -100,6 +118,8 @@ export function HardwareSettings({ controller, onDirtyChange, unlocked }: { unlo
     <nav className="hw-tabs" aria-label="设备配置分类">{([['overview', '连接概览'], ['actuators', '执行机构'], ['array', '电子皮肤'], ['sensors', '拉力与位移']] as const).map(([key, label]) => <button key={key} disabled={working} aria-pressed={tab === key} className={tab === key ? 'active' : ''} onClick={() => { setTab(key); setResult(null) }}>{label}</button>)}<span>{dirty ? '未保存' : '草稿已保存'}</span></nav>
     {storeError && <p className="settings-warning" role="alert">{storeError}。为保护原文件，暂不可保存。请通过“数据与日志”打开配置目录处理后重启控制端。</p>}
     {!online && <p className="settings-warning" role="alert">控制端离线；草稿保留，恢复连接后可继续保存。</p>}
+    {scanError && <p className="settings-warning" role="alert">{scanError}；可继续手动填写端口。</p>}
+    {ports !== null && <p className="hw-note" role="status">扫描完成：发现 {ports.length} 个串口。仅枚举端口，未打开或验证设备；选择后需保存草稿。</p>}
     <form ref={form} onSubmit={e => e.preventDefault()} className="hw-body"><fieldset disabled={working}>
       <datalist id="hw-baud-rates">{[1200, 2400, 4800, 9600, 19200, 38400, 57600, 115200, 230400, 460800, 921600].map(n => <option key={n} value={n} />)}</datalist>
       {tab === 'overview' && <><div className="hw-overview">{([['actuators', '执行机构', '2 个电机 · 1 个升降', `电机 ${config.motors.serial.port || '未配置'} · 升降 ${config.lift.serial.port || '未配置'}`], ['array', '电子皮肤', '按压 / 抓取 · 64 × 64', config.array.mode === 'usb' ? `按压 REV ${config.array.press.rev} · 抓取 REV ${config.array.grip.rev}` : `按压 ${config.array.press.serial.port || '未配置'} · 抓取 ${config.array.grip.serial.port || '未配置'}`], ['sensors', '拉力与位移', '各 1 个采集模块', `拉力 ${config.tension.serial.port || '未配置'} · 位移 ${d.serial.port || '未配置'}`]] as const).map(([key, title, subtitle, detail]) => <article className="hw-box" key={key}><h3>{title}</h3><p>{subtitle}</p><p>{detail}</p><button type="button" onClick={() => setTab(key)}>设置连接 →</button></article>)}</div><p className="hw-note">保存的是设备连接草稿，不会改变当前模拟试验，也不会自动打开设备或发送控制指令。</p></>}

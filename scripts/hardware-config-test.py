@@ -4,6 +4,7 @@ import json
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'backend' / 'src'))
 from lab_controller.storage.hardware import HardwareStore, defaults, validate
@@ -48,6 +49,11 @@ class HardwareTests(unittest.TestCase):
             try:
                 before = copy.deepcopy(controller.config.value)
                 snapshot = controller.request('hardware.get', {})
+                with patch('lab_controller.core.controller.list_ports', return_value={'ports': []}) as scan:
+                    self.assertEqual(controller.request('hardware.ports.list', {}), {'ports': []})
+                    scan.assert_called_once_with()
+                with self.assertRaises(ValueError):
+                    controller.request('hardware.ports.list', {'port': 'COM3'})
                 self.assertFalse(snapshot['drivers']['available'])
                 value = snapshot['config']
                 value['array']['press']['rev'] = 3
