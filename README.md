@@ -88,6 +88,12 @@ python3 -m pip install -r backend/requirements.txt
 
 回归测试：`python3 scripts/hardware-sensors-test.py`。实际使用前需安装 `backend/requirements.txt`，现阶段自动化测试不访问真实硬件。
 
+### 运动控制协议基础（D1，尚未开放真实控制）
+
+`backend/src/lab_controller/devices/motion_protocol.py` 提供电机停止/软件急停报文、停止应答校验、状态字解析和升降 RS232 反馈流解析。该模块仅离线编解码，没有串口发送或界面控制入口；停止回显不代表设备已停，升降高度反馈也不是动作 ACK。
+
+电机启动、归零、升降上升/下降及真实停止链路仍待后续实现与实机验收。下一子批次及所需协议/机械安全确认项见 `docs/005.硬件协议接入与整机联调实施计划.md` 的 D1 执行记录。回归测试：`python3 scripts/motion-protocol-test.py`。
+
 ### 安装与启动
 
 ```sh
