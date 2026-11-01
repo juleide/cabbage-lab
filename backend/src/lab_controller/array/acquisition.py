@@ -1,11 +1,10 @@
-import logging
 import threading
 import time
 from .processing import BaselineCorrection
 
 
 class ArrayAcquisition:
-    """Worker owns parsing; processing/control snapshots are synchronized by one lock."""
+    """Unavailable array placeholder; never emits a hardware frame without a driver."""
     def __init__(self):
         self.lock = threading.Lock()
         self.wake = threading.Event()

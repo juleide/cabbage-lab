@@ -6,7 +6,7 @@ from .ipc.server import serve
 
 
 def main():
-    parser = argparse.ArgumentParser(description='甘蓝试验台模拟控制进程')
+    parser = argparse.ArgumentParser(description='甘蓝试验台真实硬件控制进程')
     parser.add_argument('--data-dir', required=True)
     args = parser.parse_args()
     root = Path(args.data_dir).resolve()

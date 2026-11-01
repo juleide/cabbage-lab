@@ -1,4 +1,4 @@
-"""Hardware configuration only. Never opens a transport or changes simulation."""
+"""Hardware configuration storage; transport ownership belongs to device managers."""
 import copy
 import json
 import math
@@ -49,7 +49,7 @@ def defaults():
                                   rawMin=0, rawMax=5000, lower=None, upper=None, unit='mm'))
 
 
-def validate(value, complete=False, section=None, *, legacy=False):
+def validate(value, complete=False, section=None, *, legacy=False, shape_only=False, connection_only=False):
     errors = []
     template = defaults()
     if legacy:
@@ -63,7 +63,7 @@ def validate(value, complete=False, section=None, *, legacy=False):
                 return
             for key in sample:
                 shape(data[key], sample[key], f'{path}.{key}')
-        elif sample is None:
+        elif sample is None or path in ('设备配置.motors.motor1', '设备配置.motors.motor2', '设备配置.tension.station'):
             if data is not None and (type(data) not in (int, float) or (type(data) is float and not math.isfinite(data))):
                 errors.append(f'{path}：需要有效数字')
         elif type(data) is not type(sample):
@@ -80,6 +80,8 @@ def validate(value, complete=False, section=None, *, legacy=False):
         return ['不支持的设备配置版本']
     if section is not None and section not in SECTIONS:
         return ['无效的设备分类']
+    if shape_only:
+        return []
 
     def selected(path):
         return section is None or path.split('.')[0] == section
@@ -115,7 +117,7 @@ def validate(value, complete=False, section=None, *, legacy=False):
     motors = value['motors']
     for key in ('motor1', 'motor2'):
         number(motors[key], 1, 254 if legacy else 247, 'motors.' + key)
-        if not legacy:
+        if not legacy and not connection_only:
             errors.extend(f'motors.operation.{key}.{error}' for error in validate_motor_operation(motors['operation'][key]))
     if not legacy:
         settings = motors['serial']
@@ -162,6 +164,23 @@ def validate(value, complete=False, section=None, *, legacy=False):
     return list(dict.fromkeys(errors))
 
 
+def supplement_missing(value, template, path='设备配置'):
+    """Fill absent keys only; nulls, invalid nodes and unknown keys stay visible."""
+    if not isinstance(value, dict) or not isinstance(template, dict):
+        return copy.deepcopy(value), []
+    merged = copy.deepcopy(value)
+    added = []
+    for key, sample in template.items():
+        field = f'{path}.{key}'
+        if key not in merged:
+            merged[key] = copy.deepcopy(sample)
+            added.append(field)
+        else:
+            merged[key], nested = supplement_missing(merged[key], sample, field)
+            added.extend(nested)
+    return merged, added
+
+
 class HardwareStore:
     def __init__(self, path):
         self.path = path
@@ -172,7 +191,12 @@ class HardwareStore:
             try:
                 value = json.loads(path.read_text(encoding='utf-8'))
                 legacy = isinstance(value, dict) and type(value.get('schemaVersion')) is int and value['schemaVersion'] == 1
-                errors = validate(value, legacy=legacy)
+                template = defaults()
+                if legacy:
+                    template['schemaVersion'] = 1
+                    del template['motors']['operation']
+                value, added = supplement_missing(value, template)
+                errors = validate(value, legacy=legacy, shape_only=True)
                 if errors:
                     raise ValueError('；'.join(errors))
                 if legacy:
@@ -180,9 +204,18 @@ class HardwareStore:
                     value['schemaVersion'] = 2
                     value['motors']['operation'] = dict(motor1=motor_operation(), motor2=motor_operation())
                     self.warnings = ['已在内存中迁移旧配置；运行参数留空，原文件未改写。显式保存后写入 v2。'] + validate(value)
+                else:
+                    self.warnings = validate(value)
+                if added:
+                    self.warnings.append('已用默认值补齐缺失字段（原文件未改写，显式保存后写入）：' + '、'.join(added))
                 self.value = value
             except (ValueError, OSError) as exc:
                 self.error = f'设备配置读取失败，原文件未修改：{exc}'
+        else:
+            try:
+                self.save(self.value)
+            except OSError as exc:
+                self.error = f'首次设备配置写入失败：{exc}'
 
     def save(self, value):
         if self.error:

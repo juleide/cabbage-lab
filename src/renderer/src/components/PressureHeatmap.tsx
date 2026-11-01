@@ -33,7 +33,10 @@ export const PressureHeatmap = memo(function PressureHeatmap({ latest, view, ran
     let paintedSequence = -1
     let readout: FrameReadout | null = null
     const element = canvas.current!
-    const clear = () => element.getContext('2d')?.clearRect(0, 0, element.width, element.height)
+    const clear = () => {
+      drawPressureMap(element, Array(4096).fill(0), range)
+      paintedSequence = -1
+    }
     if (paused || switching || !latest.current) clear()
     const render = (now: number) => {
       if (now - lastPaint >= 100) {
@@ -46,10 +49,10 @@ export const PressureHeatmap = memo(function PressureHeatmap({ latest, view, ran
           : !received ? '等待完整阵列帧'
           : now - received.receivedAt > 1000 ? '阵列数据超时 · 非实时画面' : ''
         setMessage(previous => previous === status ? previous : status)
-        if (paused || switching || !received) {
-          if (paused || switching) clear()
+        if (status) {
+          clear()
           readout = null
-        } else if (received.frame.sequence !== paintedSequence) {
+        } else if (received && received.frame.sequence !== paintedSequence) {
           const frame = received.frame
           drawPressureMap(element, frame.displayValues, range)
           paintedSequence = frame.sequence

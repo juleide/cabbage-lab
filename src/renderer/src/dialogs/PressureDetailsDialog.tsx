@@ -20,7 +20,7 @@ const number = (value: number | undefined) => value === undefined ? '—' : valu
 export function PressureDetailsDialog({ children, view, readout, selected, stale, idle, onEmergency, onStart, onClear, onClose }: Props) {
   const correction = view.correction
   return (
-    <Modal title="云图详情 · 模拟阵列" className="pressure-details-dialog" onClose={onClose}>
+    <Modal title="云图详情 · 真实阵列" className="pressure-details-dialog" onClose={onClose}>
       <div className="pressure-details-grid">
         <div className="pressure-details-map">{children}</div>
         <div className="pressure-details-info">

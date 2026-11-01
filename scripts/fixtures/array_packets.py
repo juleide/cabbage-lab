@@ -1,6 +1,15 @@
-"""25Hz binary simulation source; exercises the same decoder as future transports."""
+"""Offline packet fixtures; CCITT-FALSE here is not a verified device CRC."""
 import math
-from .protocol import HEADER, PACKET_SIZE, simulation_crc
+import binascii
+from lab_controller.array.protocol import HEADER, PACKET_SIZE
+
+
+def simulation_crc(data):
+    return binascii.crc_hqx(data, 0xFFFF)
+
+
+def verify_simulated(packet):
+    return simulation_crc(packet[:-2]) == int.from_bytes(packet[-2:], "big")
 
 
 def make_packets(frame, mode, phase, zero):

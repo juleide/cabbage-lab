@@ -1,17 +1,11 @@
 """Row framing from the supplied manual; CRC is explicitly injected, never guessed."""
 import time
-import binascii
 from dataclasses import dataclass
 from typing import Callable
 
 HEADER = b'\xaa\x10\x33'
 PACKET_SIZE = 136
 GRID_SIZE = 64
-
-
-def simulation_crc(data: bytes) -> int:
-    """Simulation-only CCITT-FALSE profile; NOT a claim about the device CRC."""
-    return binascii.crc_hqx(data, 0xFFFF)
 
 
 @dataclass(frozen=True)

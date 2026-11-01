@@ -34,7 +34,8 @@ export function Dashboard({ range, notify, state, online, busy, exporting, error
     <main className={`layout${online ? '' : ' dashboard-offline'}`}>
       {!online && <div className="offline-banner" role="alert">设备状态未知 · {error}，请在设置页检查控制端。</div>}
       <DeviceControlPanel state={state} online={online} busy={busy} onCommand={onCommand} onNotify={notify} />
-      <MetricsPanel values={state.values} stopped={state.stopped} online={online} />
+      <MetricsPanel values={state.values} stopped={state.stopped} online={online}
+        hasReadings={Object.values(state.measurementQuality ?? {}).some(reading => reading.valid)} />
       <div className="right-col">
         <PressureMapPanel range={range} idle={idle} notify={notify} onEmergency={() => onCommand({ type: 'emergency' })} />
         <DataActionsPanel database={state.database} running={state.running} online={online} idle={idle}

@@ -497,12 +497,13 @@ class MotorRpcTests(unittest.TestCase):
                 ('hardware.motor.stop', dict(target='motor1', emergency=True)),
                 ('hardware.motor.stop', dict(target=None, emergency=1)),
                 ('hardware.motor.disconnect', {'target': 'motor1'}),
-                ('hardware.save', {'config': value}),
                 ('device.command', {'type': 'toggle', 'device': 'motor1'}),
                 ('device.command', {'type': 'initialize'}),
                 ('device.command', {'type': 'run'})):
                 with self.subTest(method=method, params=params), self.assertRaises(ValueError):
                     controller.request(method, params)
+            controller.request('hardware.save', {'config': value})
+            self.assertFalse(controller.pending_connections)
             controller.request('hardware.motor.start', start)
             self.wait(lambda: controller.request('hardware.motor.status', {})['axes']['motor1']['state'] == 'running')
             controller.request('hardware.motor.stop', dict(target='motor1', emergency=False))
@@ -550,7 +551,9 @@ class MotorRpcTests(unittest.TestCase):
             self.assertNotIn('motorMode', controller.state)
             controller.request('device.command', {'type': 'stop'})
             self.wait(lambda: not controller.motion.active())
-            restarted = Controller(Path(directory), lambda *args: None)
+            with patch.object(MotionManager, 'connect', return_value=SimpleNamespace(status={'sessionId': 'startup'})) as connect:
+                restarted = Controller(Path(directory), lambda *args: None)
+                connect.assert_called_once_with('motors', restarted.hardware.value['motors'], control=True)
             try:
                 self.assertNotIn('motorMode', restarted.state)
                 self.assertFalse(restarted.motion.sessions)
@@ -560,13 +563,15 @@ class MotorRpcTests(unittest.TestCase):
 
     def test_priority_barrier_invalidates_older_motor_connect_and_start(self):
         from lab_controller.ipc import server
-        for stop in ('hardware.motor.stop', 'hardware.motor.disconnect', 'system.motion.lock', 'system.suspend'):
+        for stop in ('hardware.motor.stop', 'hardware.motor.disconnect', 'system.motion.lock', 'system.suspend', 'device.command'):
             with self.subTest(stop=stop):
                 inbox = queue.PriorityQueue()
                 inbox.put((2, 0, dict(id='connect', method='hardware.motor.connect', params={})))
                 inbox.put((2, 1, dict(id='start', method='hardware.motor.start', params={})))
-                inbox.put((0, 2, dict(id='stop', method=stop, params={})))
-                inbox.put((3, 3, dict(id='exit', method='system.shutdown', params={})))
+                inbox.put((2, 2, dict(id='operator-start', method='device.command', params={'type': 'motor', 'enabled': True})))
+                inbox.put((2, 3, dict(id='save', method='hardware.save', params={})))
+                inbox.put((0, 4, dict(id='stop', method=stop, params={'type': 'motor', 'enabled': False} if stop == 'device.command' else {})))
+                inbox.put((3, 5, dict(id='exit', method='system.shutdown', params={})))
                 calls, responses = [], []
                 controller = SimpleNamespace(config=SimpleNamespace(value={'sampleIntervalMs': 100}),
                     snapshot=lambda: {}, publish_array=lambda: None, tick=lambda: None,
@@ -579,8 +584,8 @@ class MotorRpcTests(unittest.TestCase):
                         patch.object(server.threading, 'Thread'):
                     server.serve(Path('.'))
                 self.assertEqual(calls, [stop])
-                rejected = [response for response in responses if response['id'] in ('connect', 'start')]
-                self.assertEqual(len(rejected), 2)
+                rejected = [response for response in responses if response['id'] in ('connect', 'start', 'operator-start', 'save')]
+                self.assertEqual(len(rejected), 4)
                 self.assertTrue(all(not response['ok'] and '作废' in response['error']['message'] for response in rejected))
 
     def test_input_priority_and_barrier_classification_share_one_policy(self):
@@ -593,6 +598,8 @@ class MotorRpcTests(unittest.TestCase):
             self.assertFalse(stops_motion(method, {}))
         self.assertEqual(request_priority('system.ping', {}), 1)
         self.assertEqual(request_priority('device.command', {'type': 'emergency'}), 0)
+        self.assertEqual(request_priority('device.command', {'type': 'motor', 'enabled': False}), 0)
+        self.assertEqual(request_priority('device.command', {'type': 'motor', 'enabled': True}), 2)
 
 
 if __name__ == '__main__':

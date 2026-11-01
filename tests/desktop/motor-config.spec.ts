@@ -1,5 +1,5 @@
 import { test, expect, _electron as electron, type Page } from '@playwright/test'
-import { mkdtemp, mkdir, readFile, writeFile, rm, access } from 'node:fs/promises'
+import { mkdtemp, mkdir, readFile, writeFile, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 
@@ -12,7 +12,7 @@ function legacyHardware() {
     displacement: { serial: serial(9600), station: 1, model: '', channel: 1, reading: 'raw', rawMin: 0, rawMax: 5000, lower: null, upper: null, unit: 'mm' } }
 }
 async function enter(page: Page) {
-  await expect(page.getByText('设备已就绪', { exact: true })).toBeVisible()
+  await expect(page.getByText(/设备未就绪|设备异常/, { exact: true })).toBeVisible()
   await page.getByRole('button', { name: '设置', exact: true }).click()
   await page.getByRole('button', { name: '设备连接', exact: true }).click()
   await page.getByLabel('用户名', { exact: true }).fill('test-engineer')
@@ -21,7 +21,7 @@ async function enter(page: Page) {
   await page.getByRole('button', { name: '执行机构', exact: true }).click()
 }
 for (const unsupported of [false, true]) {
-  test(`motor config migrates legacy ${unsupported ? 'unsupported values for correction' : 'without guessing run parameters'} and persists v2 without serial access`, async () => {
+  test(`motor config migrates legacy ${unsupported ? 'unsupported values for correction' : 'without guessing run parameters'} and persists v2 without extra serial access`, async () => {
     const data = await mkdtemp(join(tmpdir(), 'lab-motor-config-'))
     const path = join(data, 'config', 'hardware.json')
     const marker = join(data, 'serial-imported')
@@ -34,13 +34,14 @@ for (const unsupported of [false, true]) {
     }
     const original = JSON.stringify(legacy)
     await writeFile(path, original)
-    await writeFile(join(data, 'serial.py'), `from pathlib import Path\nPath(${JSON.stringify(marker)}).touch()\nraise AssertionError('Config must never import serial')\n`)
+    await writeFile(join(data, 'serial.py'), `from pathlib import Path\nPath(${JSON.stringify(marker)}).open('a').write('import\\n')\nraise AssertionError('Config must never import serial')\n`)
     const app = await electron.launch({ args: ['.', `--user-data-dir=${join(data, 'ui')}`], env: { ...process.env, LAB_DATA_DIR: data, PYTHONPATH: data, LAB_DEVICE_DEBUG_USERNAME: 'test-engineer', LAB_DEVICE_DEBUG_PASSWORD: 'motor-config-tests-only' } })
     try {
       const page = await app.firstWindow()
       const errors: string[] = []
       page.on('pageerror', error => errors.push(error.message))
       await enter(page)
+      const startupSerialImports = await readFile(marker, 'utf8').catch(() => '')
       await expect(page.getByText(/已在内存中迁移旧配置/)).toBeVisible()
       expect(await readFile(path, 'utf8')).toBe(original)
       const snapshot = await page.evaluate(() => window.labDesktop!.request<any>('hardware.get'))
@@ -88,7 +89,7 @@ for (const unsupported of [false, true]) {
       await expect(page.getByLabel('1 号电机站号', { exact: true })).toHaveCount(1)
       await expect(page.getByLabel('2 号电机站号', { exact: true })).toHaveCount(1)
       expect(errors).toEqual([])
-      await expect(access(marker)).rejects.toThrow()
+      expect(await readFile(marker, 'utf8').catch(() => '')).toBe(startupSerialImports)
       await motor1.screenshot({ path: `/tmp/cabbage-motor-config-${unsupported ? 'legacy' : 'normal'}.png` })
     } finally {
       await app.evaluate(({ BrowserWindow }) => { for (const window of BrowserWindow.getAllWindows()) window.destroy() }).catch(() => {})

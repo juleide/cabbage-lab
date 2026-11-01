@@ -91,7 +91,8 @@ export function useController() {
       await flushing.current
       return true
     }
-    const key = command.type === 'toggle' ? `toggle:${command.device}` : command.type
+    const key = command.type === 'motor' ? `motor:${command.device}:${command.enabled}`
+      : command.type === 'toggle' ? `toggle:${command.device}` : command.type
     if (actions.current.has(key)) return false
     actions.current.add(key)
     setBusy(true)

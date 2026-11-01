@@ -1,6 +1,8 @@
 import { Icon } from './Icon'
+import type { LabState } from '../../../shared/controller'
 
 interface Props {
+  readiness?: LabState['readiness']
   stopped: boolean
   running: boolean
   online: boolean
@@ -8,7 +10,7 @@ interface Props {
   onEmergency: () => void
   onReset: () => void
 }
-export function AppHeader({ stopped, running, online, onSettings, onEmergency, onReset }: Props) {
+export function AppHeader({ readiness, stopped, running, online, onSettings, onEmergency, onReset }: Props) {
   return (
     <header>
       <div className="brand">
@@ -19,7 +21,7 @@ export function AppHeader({ stopped, running, online, onSettings, onEmergency, o
         <button className="settings-icon" type="button" aria-label="设置" title="设置" onClick={onSettings}><Icon name="settings" /></button>
         <div className={`connection${online ? '' : ' offline'}`}>
           <i className="dot" />
-          <span>{!online ? '控制端离线' : stopped ? '设备已急停' : running ? '联动试验中' : '设备未就绪'}</span>
+          <span title={readiness ? Object.values(readiness.devices).filter(device => device.state !== 'ready').map(device => device.reason).join('；') : undefined}>{!online ? '控制端离线' : stopped ? '设备已急停' : readiness?.state === 'fault' ? '设备异常' : running ? '联动试验中' : readiness?.state === 'ready' ? '设备已就绪' : readiness?.state === 'connecting' ? '设备连接中' : '设备未就绪'}</span>
         </div>
         {stopped
           ? <button className="emergency" disabled={!online} onClick={onReset}>解除急停</button>

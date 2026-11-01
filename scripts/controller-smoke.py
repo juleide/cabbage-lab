@@ -71,9 +71,8 @@ class Client:
 
 # Short parser checks in the existing smoke command, not a separate test suite.
 sys.path.insert(0, str(ROOT / 'backend' / 'src'))
-from lab_controller.array.protocol import FrameAssembler, RowDecoder, simulation_crc
-from lab_controller.array.acquisition import verify_simulated
-from lab_controller.array.simulated import make_packets
+from lab_controller.array.protocol import FrameAssembler, RowDecoder
+from fixtures.array_packets import make_packets, simulation_crc, verify_simulated
 from lab_controller.array.processing import BaselineCorrection, statistics
 
 assert simulation_crc(b'123456789') == 0x29B1
@@ -126,71 +125,48 @@ with tempfile.TemporaryDirectory(prefix='lab-controller-') as data:
     client = Client(data)
     try:
         assert not client.initial['state']['running']
-        frame_event = client.wait(lambda message: message.get('event') == 'pressure.frame')
-        assert len(frame_event['data']['values']) == 4096
-        assert frame_event['data']['source'] == 'simulation'
-        # Array updates are independent of slow scalar sampling.
-        slow = {**client.initial['config'], 'sampleIntervalMs': 5000}
-        client.request('config.update', {'config': slow})
-        before = time.monotonic()
-        client.wait(lambda message: message.get('event') == 'pressure.frame')
-        assert time.monotonic() - before < 1
-        status = client.request('pressure.mode', {'mode': 'grip'})
-        frame = client.wait(lambda message: message.get('event') == 'pressure.frame'
-                            and message['data']['generation'] == status['generation'])['data']
-        assert frame['mode'] == 'grip'
-        client.command('zero')
-        raw_frame = client.wait(lambda message: message.get('event') == 'pressure.frame')['data']
-        assert any(raw_frame['values']), '标量置零不得清空原始阵列'
-        client.request('pressure.zero.start')
+        assert all(value == 0 for value in client.initial['state']['values'].values())
+        assert client.initial['pressureFrame'] is None
+        for _ in range(3):
+            time.sleep(0.1)
+            snapshot = client.request('state.get')
+            assert all(value == 0 for value in snapshot['state']['values'].values())
+            assert not any(item['valid'] for item in snapshot['state']['measurementQuality'].values())
+            assert snapshot['pressureFrame'] is None
+            assert snapshot['state']['sampleCount'] == 0
+        for command in ('initialize', 'home', 'zero', 'run', 'commitPressure'):
+            try:
+                client.command(command)
+                raise AssertionError('未接入的动作不得返回成功')
+            except ValueError:
+                pass
         try:
-            client.command('toggle', device='motor1')
-            raise AssertionError('修正收集中不得启动电机')
+            client.request('pressure.zero.start')
+            raise AssertionError('未连接阵列不得置零')
         except ValueError:
             pass
-        corrected = client.wait(lambda message: message.get('event') == 'pressure.frame'
-                                and message['data']['correction']['active'])['data']
-        assert corrected['correction']['collected'] == 25
-        assert all(isinstance(value, int) for value in corrected['values'])
-        assert max(abs(value) for value in corrected['displayValues']) < 300
-        client.request('pressure.zero.clear')
-        restored = client.wait(lambda message: message.get('event') == 'pressure.frame'
-                              and not message['data']['correction']['active'])['data']
-        assert restored['displayValues'] == restored['values']
-        assert client.request('pressure.status')['diagnostics']['captureFps'] > 0
         config = {**client.initial['config'], 'defaultPressure': 0.42, 'recordPrefix': 'LAB'}
         client.request('config.update', {'config': config})
-        client.command('initialize')
-        client.command('toggle', device='motor1')
-        client.command('toggle', device='motor2')
-        client.command('run')
-        time.sleep(0.25)
-        snapshot = client.request('records.snapshot')
-        assert snapshot['count'] > 0
-        assert client.request('records.read', {'runId': snapshot['runId'], 'offset': 0, 'limit': 1})[0]['pressure'] == 0.42
-        try:
-            client.request('config.update', {'config': config})
-            raise AssertionError('运行中不应允许修改配置')
-        except ValueError:
-            pass
+        assert client.request('state.get')['state']['values']['pressure'] == 0
+        client.command('database', value='cabbage_test_archive')
+        assert client.request('state.get')['state']['database'] == 'cabbage_test_archive'
         client.command('emergency')
         state = client.request('state.get')['state']
         assert state['stopped'] and not state['running'] and not any(state['devices'].values())
         assert state['array']['paused']
-        try:
-            client.command('toggle', device='motor1')
-            raise AssertionError('急停后不应启动执行机构')
-        except ValueError:
-            pass
+        client.command('database', value='cabbage_test_2026')
         client.command('reset')
+        assert client.request('state.get')['state']['zero'] is False
+        assert client.request('records.list') == []
     finally:
         client.close()
     client = Client(data)
     try:
         assert client.initial['config']['defaultPressure'] == 0.42
-        assert client.initial['state']['sampleCount'] >= snapshot['count']
+        assert client.initial['state']['sampleCount'] == 0
         assert not any(client.initial['state']['devices'].values())
-        assert client.request('records.list')[0]['id'] == snapshot['runId']
+        assert client.request('records.list') == []
+        assert client.initial['pressureFrame'] is None
     finally:
         client.close()
-print('PASS: 阵列拆包/CRC/重排/循环、独立刷新、基线修正/取消/互锁、暂停、IPC 与 SQLite 保留')
+print('PASS: 离线阵列协议/基线校验、真实 IPC、无设备持续零值、未实现动作拒绝、急停和配置保留')

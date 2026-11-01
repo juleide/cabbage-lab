@@ -11,6 +11,68 @@ from lab_controller.storage.hardware import HardwareStore, defaults, validate, v
 
 
 class HardwareTests(unittest.TestCase):
+    def test_first_start_persists_default_file_atomically(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'config' / 'hardware.json'
+            store = HardwareStore(path)
+            self.assertIsNone(store.error)
+            self.assertEqual(json.loads(path.read_text()), defaults())
+            self.assertFalse(path.with_suffix('.tmp').exists())
+            self.assertEqual(HardwareStore(path).value, store.value)
+
+    def test_missing_fields_are_supplemented_without_changing_user_values_or_file(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'hardware.json'
+            value = defaults()
+            value['motors']['serial']['port'] = 'DEPLOYED-MOTORS'
+            value['motors']['motor1'] = 7
+            del value['motors']['operation']
+            del value['tension']['serial']['intervalMs']
+            raw = json.dumps(value)
+            path.write_text(raw)
+            store = HardwareStore(path)
+            self.assertIsNone(store.error)
+            self.assertTrue(store.warnings)
+            self.assertEqual(store.value['motors']['motor1'], 7)
+            self.assertEqual(store.value['motors']['serial']['port'], 'DEPLOYED-MOTORS')
+            self.assertEqual(store.value['motors']['operation'], defaults()['motors']['operation'])
+            self.assertEqual(store.value['tension']['serial']['intervalMs'], 100)
+            self.assertEqual(path.read_text(), raw)
+            store.save(store.value)
+            self.assertEqual(json.loads(path.read_text()), store.value)
+
+    def test_earlier_v2_null_station_fields_are_not_misclassified_as_corrupt(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'hardware.json'
+            value = defaults()
+            value['motors'].update(motor1=None, motor2=None)
+            value['tension']['station'] = None
+            path.write_text(json.dumps(value))
+            store = HardwareStore(path)
+            self.assertIsNone(store.error)
+            self.assertEqual(store.value, value)
+            self.assertTrue(validate(store.value, complete=True, section='motors'))
+
+    def test_default_file_creation_failure_is_visible_without_truncation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'hardware.json'
+            with patch.object(Path, 'replace', side_effect=OSError('disk failure')):
+                store = HardwareStore(path)
+            self.assertIsNotNone(store.error)
+            self.assertEqual(store.value, defaults())
+            self.assertFalse(path.exists())
+
+    def test_missing_supplement_does_not_repair_invalid_values_or_drop_unknown_fields(self):
+        for malformed in (None, 'bad', [], {'serial': {'permission': True}}):
+            with self.subTest(value=malformed), tempfile.TemporaryDirectory() as directory:
+                path = Path(directory) / 'hardware.json'
+                value = {'schemaVersion': 2, 'motors': malformed}
+                raw = json.dumps(value)
+                path.write_text(raw)
+                store = HardwareStore(path)
+                self.assertIsNotNone(store.error)
+                self.assertEqual(path.read_text(), raw)
+
     def legacy(self):
         value = defaults()
         value['schemaVersion'] = 1
@@ -62,7 +124,7 @@ class HardwareTests(unittest.TestCase):
             self.assertIsNone(HardwareStore(path).error)
 
     def test_legacy_shape_not_bypassed_and_invalid_v2_is_not_migrated(self):
-        for change in ('unknown', 'operation', 'boolean-version', 'bad-range', 'bad-v2'):
+        for change in ('unknown', 'operation', 'boolean-version'):
             with self.subTest(change=change), tempfile.TemporaryDirectory() as directory:
                 path = Path(directory) / 'hardware.json'
                 value = self.legacy()
@@ -72,15 +134,29 @@ class HardwareTests(unittest.TestCase):
                     value['motors']['operation'] = defaults()['motors']['operation']
                 elif change == 'boolean-version':
                     value['schemaVersion'] = True
-                elif change == 'bad-range':
-                    value['motors']['motor1'] = 255
-                else:
-                    value = defaults()
-                    value['motors']['serial']['baud'] = 57600
                 raw = json.dumps(value)
                 path.write_text(raw)
                 store = HardwareStore(path)
                 self.assertIsNotNone(store.error)
+                self.assertEqual(path.read_text(), raw)
+
+    def test_invalid_device_values_are_preserved_and_do_not_block_other_sections(self):
+        for legacy in (False, True):
+            with self.subTest(legacy=legacy), tempfile.TemporaryDirectory() as directory:
+                path = Path(directory) / 'hardware.json'
+                value = self.legacy() if legacy else defaults()
+                value['motors']['motor1'] = 255
+                value['tension']['serial']['port'] = 'TEST-TENSION'
+                raw = json.dumps(value)
+                path.write_text(raw)
+                store = HardwareStore(path)
+                self.assertIsNone(store.error)
+                self.assertTrue(store.warnings)
+                self.assertEqual(store.value['motors']['motor1'], 255)
+                self.assertTrue(validate(store.value, True, 'motors'))
+                self.assertEqual(validate(store.value, True, 'tension'), [])
+                with self.assertRaises(ValueError):
+                    store.save(store.value)
                 self.assertEqual(path.read_text(), raw)
 
     def test_motor_operation_strict_draft_complete_ranges_and_independence(self):
@@ -117,6 +193,17 @@ class HardwareTests(unittest.TestCase):
             self.assertTrue(validate(changed))
         value['tension']['serial']['baud'] = 57600
         self.assertEqual(validate(value), [])
+
+    def test_connection_validation_ignores_operation_ranges_but_start_still_rejects_them(self):
+        value = defaults()
+        value['motors']['serial'].update(port='TEST-MOTOR', baud=9600)
+        operation = value['motors']['operation']['motor1']
+        operation.update(direction=2, speedRpm=4000, maxSpeedRpm=10)
+        self.assertTrue(validate(value, True, 'motors'))
+        self.assertEqual(validate(value, True, 'motors', connection_only=True), [])
+        self.assertTrue(validate_motor_operation(operation, complete=True))
+        value['motors']['motor1'] = 255
+        self.assertTrue(validate(value, True, 'motors', connection_only=True))
 
     def test_manual_edit_applies_on_restart_and_failed_replace_keeps_loaded_value(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -187,7 +274,7 @@ class HardwareTests(unittest.TestCase):
             changed['motors']['serial']['timeoutMs'] = bad
             self.assertTrue(validate(changed))
 
-    def test_controller_methods_and_simulation_unchanged(self):
+    def test_controller_methods_preserve_experiment_config_and_zero_state(self):
         from lab_controller.core.controller import Controller
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -206,9 +293,9 @@ class HardwareTests(unittest.TestCase):
                 value['array']['press']['rev'] = 3
                 controller.request('hardware.save', {'config': value})
                 self.assertEqual(controller.config.value, before)
-                self.assertFalse(any(controller.device.outputs.values()))
+                self.assertFalse(any(controller.state['devices'].values()))
                 self.assertEqual(controller.request('hardware.check', {'config': value, 'section': 'array'}), {'errors': []})
-                controller.device.set_output('motor1', True)
+                controller.state['running'] = True
                 with self.assertRaisesRegex(ValueError, '停止'):
                     controller.request('hardware.save', {'config': value})
             finally:

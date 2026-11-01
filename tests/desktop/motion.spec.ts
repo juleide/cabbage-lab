@@ -3,7 +3,7 @@ import { mkdtemp, rm, readFile, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-test('stop-only motion diagnostics keep hardware outcome distinct from simulation', async () => {
+test('stop-only motion diagnostics distinguish command acknowledgement from physical stop', async () => {
   const data = await mkdtemp(join(tmpdir(), 'lab-motion-'))
   const app = await electron.launch({ args: ['.', `--user-data-dir=${join(data, 'ui')}`], env: { ...process.env, LAB_DATA_DIR: data, LAB_DEVICE_DEBUG_USERNAME: 'test-engineer', LAB_DEVICE_DEBUG_PASSWORD: 'motion-tests-only' } })
   try {
@@ -11,7 +11,7 @@ test('stop-only motion diagnostics keep hardware outcome distinct from simulatio
     const errors: string[] = []
     page.on('pageerror', error => errors.push(error.message))
     page.on('dialog', dialog => { void dialog.accept().catch(() => {}) })
-    await expect(page.getByText('设备已就绪', { exact: true })).toBeVisible()
+    await expect(page.getByText(/设备未就绪|设备异常/, { exact: true })).toBeVisible()
     await page.getByRole('button', { name: '设置', exact: true }).click()
     await page.getByRole('button', { name: '设备连接', exact: true }).click()
     await page.getByLabel('用户名', { exact: true }).fill('test-engineer')
@@ -63,7 +63,7 @@ test('stop-only motion diagnostics keep hardware outcome distinct from simulatio
     await expect(motors.getByText('motor1：原始位置已过期或不可用', { exact: true })).toBeVisible()
     await expect(motors.getByText(/运行位为 0（非安全停机确认）/)).toBeVisible()
     await expect(motors.getByText(/原始位置 4294967295/)).toHaveCount(0)
-    await expect(page.getByLabel('共用串口', { exact: true })).toBeDisabled()
+    await expect(page.getByLabel('共用串口', { exact: true })).toBeEnabled()
     await expect(page.getByRole('button', { name: '连接验证', exact: true })).toBeDisabled()
     await motors.getByRole('button', { name: '发送电机软件急停', exact: true }).click()
     await expect(motors.getByRole('status')).toContainText('停止结果未知，请现场确认')
@@ -124,7 +124,7 @@ class Serial:
   try {
     const page = await app.firstWindow()
     page.on('dialog', dialog => { void dialog.accept().catch(() => {}) })
-    await expect(page.getByText('设备已就绪', { exact: true })).toBeVisible()
+    await expect(page.getByText(/设备未就绪|设备异常/, { exact: true })).toBeVisible()
     await page.getByRole('button', { name: '设置', exact: true }).click()
     await page.getByRole('button', { name: '设备连接', exact: true }).click()
     async function login() {

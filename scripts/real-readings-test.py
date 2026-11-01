@@ -12,6 +12,22 @@ class RealReadingsTests(unittest.TestCase):
         self.now = 0
         self.readings = RealReadings(clock=lambda: self.now)
 
+    def test_replayed_sample_timestamp_does_not_refresh_validity(self):
+        self.readings.update('normal', 12, source='force:1', unit='N', received=0)
+        self.now = 2
+        self.readings.update('normal', 12, source='force:1', unit='N', received=0)
+        self.assertFalse(self.readings.snapshot()['quality']['normal']['valid'])
+        self.readings.update('normal', 8, source='force:1', unit='N', received=2)
+        self.readings.update('normal', 20, source='force:1', unit='N', received=1)
+        self.assertEqual(self.readings.snapshot()['values']['normal'], 8)
+
+    def test_invalid_or_future_timestamps_invalidate_old_value(self):
+        for received in (float('nan'), float('inf'), True, '0', 1):
+            self.readings.update('normal', 12, source='force:1', unit='N')
+            with self.assertRaises(ValueError):
+                self.readings.update('normal', 12, source='force:1', unit='N', received=received)
+            self.assertFalse(self.readings.snapshot()['quality']['normal']['valid'])
+
     def test_initial_values_are_zero_and_unavailable(self):
         value = self.readings.snapshot()
         self.assertTrue(all(number == 0 for number in value['values'].values()))

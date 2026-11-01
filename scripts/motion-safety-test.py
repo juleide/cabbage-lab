@@ -265,7 +265,7 @@ class SafetyTests(unittest.TestCase):
                 self.assertFalse(response['assessment']['targets']['motor1']['canExecute'])
                 self.assertFalse(controller.motion.active())
                 self.assertFalse(controller.sensors.active())
-                self.assertFalse(any(controller.device.outputs.values()))
+                self.assertFalse(any(controller.state['devices'].values()))
                 self.assertEqual(controller.records.list(controller.state['database']), [])
                 self.assertTrue(any('不执行' in log['message'] for log in controller.records.logs()))
             finally:
@@ -308,9 +308,10 @@ class SafetyTests(unittest.TestCase):
             path.write_text('{broken')
             controller = Controller(Path(root), lambda *args: None)
             try:
-                controller.request('device.command', {'type': 'toggle', 'device': 'motor1'})
+                with self.assertRaises(ValueError):
+                    controller.request('device.command', {'type': 'toggle', 'device': 'motor1'})
                 controller.request('device.command', {'type': 'emergency'})
-                self.assertFalse(any(controller.device.outputs.values()))
+                self.assertFalse(any(controller.state['devices'].values()))
                 self.assertTrue(controller.state['stopped'])
                 status = controller.request('hardware.safety.status', {})
                 self.assertTrue(status['error'])

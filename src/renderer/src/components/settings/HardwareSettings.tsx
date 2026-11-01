@@ -2,12 +2,9 @@ import { useEffect, useRef, useState } from 'react'
 import type { useController } from '../../hooks/useController'
 import type { HardwareConfig, HardwareSnapshot, HardwareCheck, HardwareSection, SerialSettings, SerialPortInfo, SerialPortScan, HardwareVerification } from '../../../../shared/hardware'
 import '../../styles/hardware.css'
-import { SensorConnections } from './SensorConnections'
-import { MotionConnections } from './MotionConnections'
-import { MotionSafetySettings } from './MotionSafetySettings'
-import { MotorControls } from './MotorControls'
+import { ConnectionStatus } from './ConnectionStatus'
 
-type Tab = 'overview' | 'actuators' | 'array' | 'sensors' | 'safety'
+type Tab = 'overview' | 'actuators' | 'array' | 'sensors'
 const labels: Record<HardwareSection, string> = { motors: '电机', lift: '升降', array: '电子皮肤', tension: '拉力', displacement: '位移' }
 const sectionNames: Record<string, string> = { ...labels, serial: '通信', motor1: '1 号电机站号', motor2: '2 号电机站号', press: '按压', grip: '抓取', port: '串口', baud: '波特率', bits: '数据位', parity: '校验位', stop: '停止位', timeoutMs: '响应超时', intervalMs: '读取间隔', station: '站号', unit: '单位', decimals: '小数位', channel: '通道', model: '模块类型', reading: '读取方式', rawMin: '原始值下限', rawMax: '原始值上限', lower: '位移下限', upper: '位移上限', rev: 'REV' }
 function readable(message: string) { return message.replace(/[a-zA-Z]+(?:\.[a-zA-Z0-9]+)*/g, word => word.split('.').map(part => sectionNames[part] || part).join(' / ')) }
@@ -19,12 +16,8 @@ export function HardwareSettings({ controller, onDirtyChange, unlocked }: { unlo
   const [loadError, setLoadError] = useState('')
   const [storeError, setStoreError] = useState('')
   const [configWarnings, setConfigWarnings] = useState<string[]>([])
-  const [capability, setCapability] = useState('')
   const [working, setWorking] = useState(false)
-  const [sensorsActive, setSensorsActive] = useState(false)
-  const [motionActive, setMotionActive] = useState(false)
-  const [safetyDirty, setSafetyDirty] = useState(false)
-  const hardwareActive = sensorsActive || motionActive
+  const [hardwareActive, setHardwareActive] = useState(false)
   const [verification, setVerification] = useState<HardwareVerification | null>(null)
   const [verificationError, setVerificationError] = useState('')
   const [ports, setPorts] = useState<SerialPortInfo[] | null>(null)
@@ -78,12 +71,12 @@ export function HardwareSettings({ controller, onDirtyChange, unlocked }: { unlo
     finally { setWorking(false) }
   }
 
-  useEffect(() => { onDirtyChange(dirty || safetyDirty) }, [dirty, safetyDirty, onDirtyChange])
+  useEffect(() => { onDirtyChange(dirty) }, [dirty, onDirtyChange])
   useEffect(() => {
-    const warn = (event: BeforeUnloadEvent) => { if (dirty || safetyDirty) { event.preventDefault(); event.returnValue = '' } }
+    const warn = (event: BeforeUnloadEvent) => { if (dirty) { event.preventDefault(); event.returnValue = '' } }
     window.addEventListener('beforeunload', warn)
     return () => window.removeEventListener('beforeunload', warn)
-  }, [dirty, safetyDirty])
+  }, [dirty])
   async function load() {
     const id = ++generation.current
     setWorking(true); setLoadError('')
@@ -92,7 +85,7 @@ export function HardwareSettings({ controller, onDirtyChange, unlocked }: { unlo
       if (id !== generation.current) return
       setConfig(value.config); setSaved(JSON.stringify(value.config)); setStoreError(value.error || '')
       setConfigWarnings(value.warnings || [])
-      setCapability(value.drivers.message); setResult(null); setChecked(''); revision.current++
+      setResult(null); setChecked(''); revision.current++
     } catch (reason) { if (id === generation.current) setLoadError((reason as Error).message) }
     finally { if (id === generation.current) setWorking(false) }
   }
@@ -121,11 +114,11 @@ export function HardwareSettings({ controller, onDirtyChange, unlocked }: { unlo
     if (config) edit({ ...config, [key]: { ...config[key], ...value } })
   }
   async function save() {
-    if (!config || working || busy || !idle || storeError || hardwareActive) return
+    if (!config || working || busy || !idle || storeError) return
     setWorking(true)
     try {
       const value = await request<HardwareConfig>('hardware.save', { config })
-      setConfig(value); setSaved(JSON.stringify(value)); notify('设备连接草稿已保存；未连接真实硬件')
+      setConfig(value); setSaved(JSON.stringify(value)); notify('设备连接草稿已保存；变更的活动设备将只读重连，不恢复运动')
       setConfigWarnings([])
       setVerification(null)
     } catch (reason) { setResult([(reason as Error).message]) }
@@ -146,7 +139,7 @@ export function HardwareSettings({ controller, onDirtyChange, unlocked }: { unlo
     return <input type="number" value={value ?? ''} min={min} max={max} step={step} readOnly={fixed} placeholder="请填写" onChange={e => change(e.target.value === '' ? null : Number(e.target.value))} />
   }
   function serial(value: SerialSettings, change: (value: SerialSettings) => void, title: string, shared = false) {
-    return <article className="hw-box"><h4>{title}<span>{verifying && verification.section === scope ? '只读验证中' : '连接状态见下方诊断面板'}</span></h4><div className="hw-grid">
+    return <article className="hw-box"><h4>{title}<span>{verifying && verification.section === scope ? '只读验证中' : '连接状态见下方'}</span></h4><div className="hw-grid">
       <label>{shared ? '共用串口' : '串口'}<div className="hw-port"><input aria-label={shared ? '共用串口' : '串口'} value={value.port} placeholder="COM3 或 /dev/ttyUSB0" onChange={e => change({ ...value, port: e.target.value })} /><button type="button" disabled={!online || scanning} onClick={() => void scan()}>{scanning ? '扫描中…' : '扫描'}</button></div></label>
       <label>波特率{shared ? <select aria-label="波特率" value={value.baud ?? ''} onChange={e => change({ ...value, baud: e.target.value === '' ? null : Number(e.target.value) })}><option value="">请选择</option>{value.baud !== null && ![9600, 19200, 38400, 115200].includes(value.baud) && <option value={value.baud}>{value.baud}（旧配置需修正）</option>}{[9600, 19200, 38400, 115200].map(n => <option key={n} value={n}>{n}</option>)}</select> : <input type="number" list="hw-baud-rates" value={value.baud ?? ''} min="1" max="4000000" step="1" placeholder="选择或输入" onChange={e => change({ ...value, baud: e.target.value === '' ? null : Number(e.target.value) })} />}</label>
     </div>{ports && <><label>扫描结果<select aria-label={title + '扫描结果'} value="" onChange={e => { if (e.target.value) change({ ...value, port: e.target.value }) }}><option value="">{ports.length ? '选择端口（也可手动填写）' : '未发现串口，可刷新或手动填写'}</option>{ports.map(port => <option key={port.port} value={port.port}>{port.port} · {port.description}{port.serialNumber ? ` · ${port.serialNumber}` : ''}</option>)}</select></label>{value.port.trim() && !ports.some(port => port.port === value.port.trim() || (/^com\d+$/i.test(port.port) && port.port.toUpperCase() === value.port.trim().toUpperCase())) && <p className="hw-note">所填端口不在本次扫描结果中；配置已保留，请检查连接或手动确认。</p>}</>}<details><summary>高级通信参数</summary><div className="hw-grid">
@@ -160,27 +153,19 @@ export function HardwareSettings({ controller, onDirtyChange, unlocked }: { unlo
   if (!config) return <section className="settings-card"><h3>设备连接</h3><p role="status">{loadError || (online ? '正在加载设备配置…' : '控制端离线，无法加载设备配置')}</p><button disabled={!online || working} onClick={() => void load()}>重新加载</button></section>
   const d = config.displacement
   return <section className="settings-card hardware-settings">
-    <header className="hw-heading"><div><h2>设备连接</h2><p>配置端口、设备绑定与数据解析参数</p></div><span className="hw-mode">模拟试验 · 支持真实只读采集</span></header>
-    <nav className="hw-tabs" aria-label="设备配置分类">{([['overview', '连接概览'], ['actuators', '执行机构'], ['array', '电子皮肤'], ['sensors', '拉力与位移'], ['safety', '运动安全']] as const).map(([key, label]) => <button key={key} disabled={working} aria-pressed={tab === key} className={tab === key ? 'active' : ''} onClick={() => { setTab(key); setResult(null) }}>{label}</button>)}<span>{dirty || safetyDirty ? '未保存' : '草稿已保存'}</span></nav>
+    <header className="hw-heading"><div><h2>设备连接</h2><p>配置端口、设备绑定与数据解析参数</p></div><span className="hw-mode">真实硬件连接</span></header>
+    <nav className="hw-tabs" aria-label="设备配置分类">{([['overview', '连接概览'], ['actuators', '执行机构'], ['array', '电子皮肤'], ['sensors', '拉力与位移']] as const).map(([key, label]) => <button key={key} disabled={working} aria-pressed={tab === key} className={tab === key ? 'active' : ''} onClick={() => { setTab(key); setResult(null) }}>{label}</button>)}<span>{dirty ? '未保存' : '草稿已保存'}</span></nav>
     {storeError && <p className="settings-warning" role="alert">{storeError}。为保护原文件，暂不可保存。请通过“数据与日志”打开配置目录处理后重启控制端。</p>}
     {!!configWarnings.length && <div className="settings-warning" role="status">{configWarnings.map((warning, i) => <p key={i}>{warning}</p>)}</div>}
     {!online && <p className="settings-warning" role="alert">控制端离线；草稿保留，恢复连接后可继续保存。</p>}
     {scanError && <p className="settings-warning" role="alert">{scanError}；可继续手动填写端口。</p>}
     {ports !== null && <p className="hw-note" role="status">扫描完成：发现 {ports.length} 个串口。仅枚举端口，未打开或验证设备；选择后需保存草稿。</p>}
-    <form ref={form} onSubmit={e => e.preventDefault()} className="hw-body"><fieldset disabled={working || verifying || hardwareActive}>
+    <form ref={form} onSubmit={e => e.preventDefault()} className="hw-body"><fieldset disabled={working || verifying || !idle}>
       <datalist id="hw-baud-rates">{[1200, 2400, 4800, 9600, 19200, 38400, 57600, 115200, 230400, 460800, 921600].map(n => <option key={n} value={n} />)}</datalist>
-      {tab === 'overview' && <><div className="hw-overview">{([['actuators', '执行机构', '2 个电机 · 1 个升降', `电机 ${config.motors.serial.port || '未配置'} · 升降 ${config.lift.serial.port || '未配置'}`], ['array', '电子皮肤', '按压 / 抓取 · 64 × 64', config.array.mode === 'usb' ? `按压 REV ${config.array.press.rev} · 抓取 REV ${config.array.grip.rev}` : `按压 ${config.array.press.serial.port || '未配置'} · 抓取 ${config.array.grip.serial.port || '未配置'}`], ['sensors', '拉力与位移', '各 1 个采集模块', `拉力 ${config.tension.serial.port || '未配置'} · 位移 ${d.serial.port || '未配置'}`]] as const).map(([key, title, subtitle, detail]) => <article className="hw-box" key={key}><h3>{title}</h3><p>{subtitle}</p><p>{detail}</p><button type="button" onClick={() => setTab(key)}>设置连接 →</button></article>)}</div><p className="hw-note">保存的是设备连接草稿，不会改变当前模拟试验，也不会自动打开设备或发送控制指令。</p></>}
+      {tab === 'overview' && <><div className="hw-overview">{([['actuators', '执行机构', '2 个电机 · 1 个升降', `电机 ${config.motors.serial.port || '未配置'} · 升降 ${config.lift.serial.port || '未配置'}`], ['array', '电子皮肤', '按压 / 抓取 · 64 × 64', config.array.mode === 'usb' ? `按压 REV ${config.array.press.rev} · 抓取 REV ${config.array.grip.rev}` : `按压 ${config.array.press.serial.port || '未配置'} · 抓取 ${config.array.grip.serial.port || '未配置'}`], ['sensors', '拉力与位移', '各 1 个采集模块', `拉力 ${config.tension.serial.port || '未配置'} · 位移 ${d.serial.port || '未配置'}`]] as const).map(([key, title, subtitle, detail]) => <article className="hw-box" key={key}><h3>{title}</h3><p>{subtitle}</p><p>{detail}</p><button type="button" onClick={() => setTab(key)}>设置连接 →</button></article>)}</div><p className="hw-note">保存连接配置后，下次启动控制端按配置连接真实设备；保存不会启动执行机构。</p></>}
       {tab === 'actuators' && <><div className="hw-switch"><button type="button" aria-pressed={actuator === 'motors'} onClick={() => { setActuator('motors'); setResult(null) }}>步进电机 · 共用总线</button><button type="button" aria-pressed={actuator === 'lift'} onClick={() => { setActuator('lift'); setResult(null) }}>升降装置 · 独立连接</button></div>{actuator === 'motors' ? <>
         {serial(config.motors.serial, value => patch('motors', { serial: value }), 'RS485 · Modbus RTU', true)}
         <div className="hw-grid">{(['motor1', 'motor2'] as const).map((id, i) => <label key={id}>{i + 1} 号电机站号{number(config.motors[id], value => patch('motors', { [id]: value }), 1, 247)}</label>)}</div><p className="hw-note">两个电机共用总线，站号不能重复；通信参数需与驱动器一致。</p>
-        {(['motor1', 'motor2'] as const).map((id, i) => {
-          const operation = config.motors.operation[id]
-          const change = (field: keyof typeof operation, value: number | null) => patch('motors', { operation: { ...config.motors.operation, [id]: { ...operation, [field]: value } } })
-          return <article className="hw-box" key={id} aria-label={`${i + 1} 号电机固定运行参数`}><h4>{i + 1} 号电机固定运行参数<span>未知值留空</span></h4><div className="hw-grid">
-            <label>运行方向<select aria-label={`${i + 1} 号电机运行方向`} value={operation.direction ?? ''} onChange={e => change('direction', e.target.value === '' ? null : Number(e.target.value))}><option value="">待现场核验</option><option value="1">正向 +1</option><option value="-1">反向 -1</option></select></label>
-            {([['speedRpm', '运行速度（r/min）', 3000], ['maxSpeedRpm', '安全速度上限（r/min）', 3000], ['accelerationMs', '加速时间（ms）', 2000], ['decelerationMs', '减速时间（ms）', 2000], ['maxRunMs', '单次最长运行（ms）', 3600000]] as const).map(([field, label, max]) => <label key={field}>{label}{number(operation[field], value => change(field, value), 1, max)}</label>)}
-          </div><p className="hw-note">仅保存本地运行草稿，不写驱动器、不启动。参数可留空以进行只读验证；启动前须完整。时限最多 3600000 ms 是本地软件约束，不是硬件保护。速度上限、方向及有限行程保护需现场核验。</p></article>
-        })}
       </> : <><label>连接接口<select value={config.lift.interface} onChange={e => patch('lift', { interface: e.target.value as 'RS232' | 'RS485' })}><option>RS232</option><option>RS485</option></select></label>{serial(config.lift.serial, value => patch('lift', { serial: value }), '霍尔升降控制器')}<p className="hw-note">RS232 预设 38400 / 8N1，可按实物调整；自定义帧，无站号，不自动复位或清错。</p></>}</>}
       {tab === 'array' && <><label>连接方式<select value={config.array.mode} onChange={e => patch('array', { mode: e.target.value as 'usb' | 'serial' })}><option value="usb">USB</option><option value="serial">串口</option></select></label>{(['press', 'grip'] as const).map((key, i) => config.array.mode === 'usb' ? <article className="hw-box" key={key}><h4>{i ? '抓取' : '按压'}采集器<span>未连接</span></h4><label>REV 号<select value={config.array[key].rev} onChange={e => patch('array', { [key]: { ...config.array[key], rev: Number(e.target.value) } })}>{[0, 1, 2, 3].map(n => <option key={n}>{n}</option>)}</select></label></article> : <div key={key}>{serial(config.array[key].serial, value => patch('array', { [key]: { ...config.array[key], serial: value } }), (i ? '抓取' : '按压') + '采集器')}</div>)}<p className="hw-note">USB 按 REV 号区分；串口按独立端口区分，两台不能重复绑定。未标定点阵只显示原始值。</p></>}
       {tab === 'sensors' && <><div className="hw-switch"><button type="button" aria-pressed={sensor === 'tension'} onClick={() => { setSensor('tension'); setResult(null) }}>拉力采集</button><button type="button" aria-pressed={sensor === 'displacement'} onClick={() => { setSensor('displacement'); setResult(null) }}>位移采集</button></div>{sensor === 'tension' ? <>
@@ -193,14 +178,12 @@ export function HardwareSettings({ controller, onDirtyChange, unlocked }: { unlo
           {d.reading === 'raw' && (['rawMin', 'rawMax', 'lower', 'upper'] as const).map((key, i) => <label key={key}>{['原始值下限', '原始值上限', '位移下限', '位移上限'][i]}{number(d[key], value => patch('displacement', { [key]: value }), -1e12, 1e12, 'any', d.model === 'p' && i < 2)}</label>)}<label>结果单位<input required value={d.unit} onChange={e => patch('displacement', { unit: e.target.value })} /></label></div><p className="hw-note">{d.reading === 'raw' ? '按原始值范围与实际量程线性换算；超范围数据标记异常。' : '按 ABCD 大端 float32 解析，不重复缩放；单位需与模块内部配置一致。'}</p></details><p className="hw-note">P / G 寄存器表不同，请按实物选择；这些是应用读取参数，不会写入设备。</p>
       </>}</>}
     </fieldset></form>
-    <MotionSafetySettings controller={controller} unlocked={unlocked} visible={tab === 'safety'} disabled={dirty || working || verifying || hardwareActive || !idle || busy || !!storeError} onDirtyChange={setSafetyDirty} />
-    <MotionConnections controller={controller} unlocked={unlocked} disabled={safetyDirty || dirty || working || verifying || sensorsActive || !idle || busy || !!storeError} visible={tab === 'actuators' || tab === 'overview'} onActive={setMotionActive} />
-    <MotorControls controller={controller} unlocked={unlocked} disabled={safetyDirty || dirty || working || verifying || sensorsActive || !idle || busy || !!storeError} visible={tab === 'actuators' || tab === 'overview'} />
-    <SensorConnections controller={controller} unlocked={unlocked} disabled={safetyDirty || motionActive || dirty || working || verifying || !idle || busy || !!storeError} visible={tab === 'sensors' || tab === 'overview'} onActive={setSensorsActive} />
-    {hardwareActive && <p className="hw-note">真实设备会话运行中，配置修改及一次性验证已锁定；请先结束真实设备连接。</p>}
+    <ConnectionStatus controller={controller} unlocked={unlocked} scope={scope}
+      disabled={dirty || working || verifying || !idle || busy || !!storeError} onActive={setHardwareActive} />
+    {hardwareActive && <p className="hw-note">活动连接的配置可在执行机构静止时保存；仅变更设备关闭后只读重连，不恢复运动。一次性验证仍需先断开对应连接。</p>}
     {result !== null && <div className={`hw-result${result.length ? ' error' : ''}`} role="status">{result.length ? <ul>{result.map((error, i) => <li key={i}>{readable(error)}</li>)}</ul> : '配置检查通过，不代表硬件连接成功。'}</div>}
     {verificationError && <p className="settings-warning" role="alert">{verificationError}</p>}
-    {verification && verification.state !== 'idle' && <div className="hw-result" role="status"><strong>{verification.section ? labels[verification.section] : ''}只读验证</strong><p>{verification.message}</p>{verification.readings && <p style={{ overflowWrap: 'anywhere' }}>本次读取：{JSON.stringify(verification.readings)}</p>}{dirty && <p>草稿已修改，以上结果不适用于未保存配置。</p>}<p>仅为一次性诊断，非持续连接或实时采样；当前试验仍使用模拟设备。</p></div>}
-    <footer className="hw-footer"><p>{capability} 现支持电机、拉力和位移的一次性只读验证；升降及电子皮肤暂不支持。请进入对应分类操作。</p><div><button disabled={!online || working || verifying} onClick={() => { if (form.current?.reportValidity()) void check() }}>检查{scope ? labels[scope] : '全部'}配置</button><button disabled={!online || working || verifying || hardwareActive || !idle || busy || !!storeError || !supportsVerification || dirty || checked !== serialized + ':' + (scope || 'all')} onClick={() => void verify()}>连接验证</button>{verifying && <button disabled={!online || working} onClick={() => void verify(true)}>取消验证</button>}<button className="hw-primary" disabled={!online || working || verifying || hardwareActive || !idle || busy || !!storeError || !dirty} onClick={() => { if (form.current?.reportValidity()) void save() }}>{working ? '处理中…' : '保存草稿'}</button></div>{!idle && <small>请先停止试验并关闭执行机构后保存配置或验证通信。</small>}</footer>
+    {verification && verification.state !== 'idle' && <div className="hw-result" role="status"><strong>{verification.section ? labels[verification.section] : ''}只读验证</strong><p>{verification.message}</p>{dirty && <p>草稿已修改，以上结果不适用于未保存配置。</p>}<p>仅为一次性诊断，非持续连接或实时采样；验证通过不代表设备允许运动。</p></div>}
+    <footer className="hw-footer"><p>设置保存到 config/hardware.json；重新连接只读取反馈，不会自动启动设备。</p><div><button disabled={!online || working || verifying} onClick={() => { if (form.current?.reportValidity()) void check() }}>检查{scope ? labels[scope] : '全部'}配置</button><button disabled={!online || working || verifying || hardwareActive || !idle || busy || !!storeError || !supportsVerification || dirty || checked !== serialized + ':' + (scope || 'all')} onClick={() => void verify()}>连接验证</button>{verifying && <button disabled={!online || working} onClick={() => void verify(true)}>取消验证</button>}<button className="hw-primary" disabled={!online || working || verifying || !idle || busy || !!storeError || !dirty} onClick={() => { if (form.current?.reportValidity()) void save() }}>{working ? '处理中…' : '保存草稿'}</button></div>{!idle && <small>请先停止试验和执行机构，再保存配置或检查连接。</small>}</footer>
   </section>
 }

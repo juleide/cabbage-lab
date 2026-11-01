@@ -599,8 +599,9 @@ class MotionTests(unittest.TestCase):
                 controller.request('hardware.save', {'config': value})
                 controller.request('hardware.motion.connect', {'section': 'motors'})
                 self.wait(lambda: bool(controller.motion.snapshot()['motors']['readings']))
-                for method, params in [('hardware.save', {'config': value}),
-                        ('hardware.verify', {'section': 'motors'}),
+                controller.request('hardware.save', {'config': value})
+                self.assertFalse(controller.pending_connections)
+                for method, params in [('hardware.verify', {'section': 'motors'}),
                         ('hardware.sensors.connect', {'section': 'tension'}),
                         ('device.command', {'type': 'toggle', 'device': 'motor1'}),
                         ('hardware.motion.start', {'section': 'motors'}),

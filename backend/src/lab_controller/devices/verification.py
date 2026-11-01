@@ -44,7 +44,7 @@ class VerificationManager:
         self.thread = None
         self.closed = False
         self.result = {'state': 'idle', 'sessionId': None, 'section': None,
-                       'message': '尚未验证；当前试验仍使用模拟设备', 'readings': None, 'phase': 'closed'}
+                       'message': '尚未验证；仅验证真实设备通信，不授予运动许可', 'readings': None, 'phase': 'closed'}
 
     def snapshot(self):
         with self.lock:
@@ -64,7 +64,7 @@ class VerificationManager:
         session = uuid.uuid4().hex
         with self.lock:
             self.result = {'state': 'checking', 'sessionId': session, 'section': section,
-                           'message': '正在进行一次性只读验证；不会切换为真实试验', 'readings': None,
+                           'message': '正在进行一次性只读验证；不会发送启动或使能命令', 'readings': None,
                            'port': config['serial']['port'], 'startedAt': time.time(), 'phase': 'opening'}
         self.thread = threading.Thread(target=self.run, args=(session, section, copy.deepcopy(config)),
                                        daemon=True, name='hardware-verification')

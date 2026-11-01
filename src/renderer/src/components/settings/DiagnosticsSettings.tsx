@@ -20,7 +20,7 @@ export function DiagnosticsSettings({ info, online, idle, busy, error, onRestart
       <dl className="settings-details">
         <div><dt>应用版本</dt><dd>{info?.version || '—'}</dd></div>
         <div><dt>运行平台</dt><dd>{info?.platform || '—'}</dd></div>
-        <div><dt>运行环境</dt><dd>模拟试验（真实诊断连接状态见设备连接页）</dd></div>
+        <div><dt>运行环境</dt><dd>真实硬件接入（设备连接及采集状态见设备连接页）</dd></div>
         <div><dt>控制端</dt><dd>{online ? 'Python 在线' : '离线 · 设备状态未知'}</dd></div>
         <div><dt>Python 命令</dt><dd>{info?.python || 'python3 / python'}（要求 Python 3.10+）</dd></div>
       </dl>
@@ -31,7 +31,7 @@ export function DiagnosticsSettings({ info, online, idle, busy, error, onRestart
       </div>
       <h3>阵列采集</h3>
       <dl className="settings-details">
-        <div><dt>数据来源</dt><dd>模拟采集 · {array.status?.mode === 'grip' ? '抓取' : '按压'}</dd></div>
+        <div><dt>数据来源</dt><dd>真实阵列（未接入时无数据）· {array.status?.mode === 'grip' ? '抓取' : '按压'}</dd></div>
         <div><dt>采集帧率</dt><dd>{online ? (diagnostic?.captureFps ?? 0).toFixed(1) : '0.0'} FPS</dd></div>
         <div><dt>界面接收帧率</dt><dd>{array.receiveFps.toFixed(1)} FPS</dd></div>
         <div><dt>最近完整帧</dt><dd>{diagnostic?.lastFrameAt ? new Date(diagnostic.lastFrameAt).toLocaleString('zh-CN') : '尚未收到'}{!online && ' · 非实时'}</dd></div>

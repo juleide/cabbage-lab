@@ -1,5 +1,5 @@
 import { test, expect, _electron as electron, type Page } from '@playwright/test'
-import { mkdtemp, mkdir, readFile, writeFile, rm, access } from 'node:fs/promises'
+import { mkdtemp, mkdir, readFile, writeFile, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 
@@ -12,7 +12,7 @@ function hardware() {
     displacement: { serial: serial('', 9600), station: 1, model: '', channel: 1, reading: 'raw', rawMin: 0, rawMax: 5000, lower: null, upper: null, unit: 'mm' } }
 }
 async function enter(page: Page) {
-  await expect(page.getByText('设备已就绪', { exact: true })).toBeVisible()
+  await expect(page.getByText(/设备未就绪|设备异常/, { exact: true })).toBeVisible()
   await page.getByRole('button', { name: '设置', exact: true }).click()
   await page.getByRole('button', { name: '设备连接', exact: true }).click()
   await page.getByLabel('用户名', { exact: true }).fill('test-engineer')
@@ -27,7 +27,7 @@ test('safety draft saves via real IPC, plans offline and invalidates after conne
   const marker = join(data, 'serial-imported')
   await mkdir(join(data, 'config'))
   await writeFile(join(data, 'config', 'hardware.json'), JSON.stringify(hardware()))
-  await writeFile(join(data, 'serial.py'), `from pathlib import Path\nPath(${JSON.stringify(marker)}).touch()\nraise AssertionError('Offline planning must not import serial')\n`)
+  await writeFile(join(data, 'serial.py'), `from pathlib import Path\nPath(${JSON.stringify(marker)}).open('a').write('import\\n')\nraise AssertionError('Offline planning must not import serial')\n`)
   const app = await electron.launch({ args: ['.', `--user-data-dir=${join(data, 'ui')}`], env: { ...process.env, LAB_DATA_DIR: data, PYTHONPATH: data, LAB_DEVICE_DEBUG_USERNAME: 'test-engineer', LAB_DEVICE_DEBUG_PASSWORD: 'safety-tests-only' } })
   try {
     const page = await app.firstWindow()
@@ -36,6 +36,7 @@ test('safety draft saves via real IPC, plans offline and invalidates after conne
     const accept = (dialog: any) => { void dialog.accept().catch(() => {}) }
     page.on('dialog', accept)
     await enter(page)
+    const startupSerialImports = await readFile(marker, 'utf8').catch(() => '')
     await expect(page.getByRole('button', { name: '真实运动未开放', exact: true })).toBeDisabled()
     await expect(page.getByRole('button', { name: '仅计算离线目标', exact: true })).toBeDisabled()
     await page.getByLabel('设备/工装编号（人工记录）', { exact: true }).fill('OFFLINE-TEST-ONLY')
@@ -90,7 +91,7 @@ test('safety draft saves via real IPC, plans offline and invalidates after conne
     expect(Object.values(status.targets).every((value: any) => !value.canExecute)).toBe(true)
     const snapshot = await page.evaluate(() => window.labDesktop!.request<any>('state.get'))
     expect(Object.values(snapshot.state.devices)).toEqual([false, false, false])
-    await expect(access(marker)).rejects.toThrow()
+    expect(await readFile(marker, 'utf8').catch(() => '')).toBe(startupSerialImports)
     expect(errors).toEqual([])
     await page.getByRole('heading', { name: '运动安全草稿与能力评估', exact: true }).scrollIntoViewIfNeeded()
     await page.screenshot({ path: '/tmp/cabbage-motion-safety.png', fullPage: true })

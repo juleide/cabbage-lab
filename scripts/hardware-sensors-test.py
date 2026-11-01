@@ -65,7 +65,7 @@ class SensorTests(unittest.TestCase):
             time.sleep(0.005)
         self.fail('等待传感器状态超时')
 
-    def test_two_connections_records_and_simulation_isolation(self):
+    def test_two_connections_record_raw_feedback_without_guessing_homepage_mapping(self):
         with tempfile.TemporaryDirectory() as directory:
             controller = Controller(Path(directory), lambda *args: None)
             ports = []
@@ -86,11 +86,13 @@ class SensorTests(unittest.TestCase):
                 self.assertEqual(statuses['tension']['reading']['value'], 12.34)
                 self.assertEqual(statuses['displacement']['reading']['value'], 350)
                 self.assertEqual(len(ports), 2)
-                for method, params in [('hardware.save', {'config': value}), ('hardware.verify', {'section': 'tension'}),
+                controller.request('hardware.save', {'config': value})
+                self.assertFalse(controller.pending_connections)
+                for method, params in [('hardware.verify', {'section': 'tension'}),
                                        ('device.command', {'type': 'toggle', 'device': 'motor1'})]:
                     with self.assertRaises(ValueError):
                         controller.request(method, params)
-                self.assertFalse(any(controller.device.outputs.values()))
+                self.assertFalse(any(controller.state['devices'].values()))
                 self.assertEqual(controller.records.list(controller.state['database']), [])
                 controller.request('device.command', {'type': 'emergency'})
                 self.wait(lambda: not controller.sensors.active(), controller)

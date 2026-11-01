@@ -10,6 +10,8 @@ export interface Measurements {
   speed: number
   coefficient: number
   pressure: number
+  gripArea?: number
+  gripForce?: number
 }
 export interface Sample extends Measurements { time: string }
 export interface LogEntry { time: string; message: string }
@@ -71,8 +73,13 @@ export interface PressureFrame {
   stats: ArrayDiagnostics
 }
 export interface LabState {
+  motorControl: { sessionId: string; configVersion: string; state: string; axes: Partial<Record<'motor1' | 'motor2', { state: string; canStart: boolean; startBlocked?: string | null }>> } | null
+  readiness: { state: 'ready' | 'connecting' | 'unavailable' | 'fault'; missing: string[]; configError: string | null;
+    devices: Record<string, { required: boolean; state: 'ready' | 'connecting' | 'unavailable' | 'fault'; reason: string }> }
   array: PressureStatus
   devices: Record<DeviceId, boolean>
+  deviceFeedback: Record<DeviceId, { state: 'unknown' | 'running' | 'stopped'; quality: 'unavailable' | 'valid' | 'stale'; physicalStopConfirmed: false }>
+  measurementQuality: Record<keyof Measurements, { valid: boolean; source: string | null; unit: string; state: 'valid' | 'stale' | 'unavailable'; ageMs?: number | null }>
   initialized: boolean
   running: boolean
   stopped: boolean
@@ -99,6 +106,7 @@ export interface RunRecord {
   sampleCount: number
 }
 export type DeviceCommand =
+  | { type: 'motor'; device: 'motor1' | 'motor2'; enabled: boolean; sessionId: string; configVersion: string }
   | { type: 'initialize' | 'home' | 'zero' | 'run' | 'stop' | 'emergency' | 'reset' | 'commitPressure' }
   | { type: 'toggle'; device: DeviceId }
   | { type: 'pressure'; value: number }

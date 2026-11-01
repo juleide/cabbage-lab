@@ -203,7 +203,7 @@ class VerificationTests(unittest.TestCase):
                 result = controller.request('hardware.verify', {'section': 'tension'})
                 self.assertEqual(result['state'], 'checking')
                 self.assertIn('state', controller.request('state.get', {}))
-                self.assertFalse(any(controller.device.outputs.values()))
+                self.assertFalse(any(controller.state['devices'].values()))
                 with self.assertRaises(ValueError):
                     controller.request('device.command', {'type': 'toggle', 'device': 'motor1'})
                 with self.assertRaises(ValueError):

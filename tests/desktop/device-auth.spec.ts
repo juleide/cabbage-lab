@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 async function enter(page: Page) {
-  await expect(page.getByText('设备已就绪', { exact: true })).toBeVisible()
+  await expect(page.getByText(/设备未就绪|设备异常/, { exact: true })).toBeVisible()
   await page.getByRole('button', { name: '设置', exact: true }).click()
   await page.getByRole('button', { name: '设备连接', exact: true }).click()
   await expect(page.getByRole('heading', { name: '设备调试', exact: true })).toBeVisible()

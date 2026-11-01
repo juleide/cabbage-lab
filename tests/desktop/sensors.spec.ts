@@ -3,13 +3,13 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-test('continuous sensors show quality, preserve simulation isolation and provide separate records', async () => {
+test('continuous sensors show quality, preserve metric mapping boundaries and provide separate records', async () => {
   const data = await mkdtemp(join(tmpdir(), 'lab-sensors-'))
   const app = await electron.launch({ args: ['.', `--user-data-dir=${join(data, 'ui')}`], env: { ...process.env, LAB_DATA_DIR: data, LAB_DEVICE_DEBUG_USERNAME: 'test-engineer', LAB_DEVICE_DEBUG_PASSWORD: 'sensor-tests-only' } })
   try {
     const page = await app.firstWindow()
     page.on('dialog', dialog => { void dialog.accept() })
-    await expect(page.getByText('设备已就绪', { exact: true })).toBeVisible()
+    await expect(page.getByText(/设备未就绪|设备异常/, { exact: true })).toBeVisible()
     await page.getByRole('button', { name: '设置', exact: true }).click()
     await page.getByRole('button', { name: '设备连接', exact: true }).click()
     await page.getByLabel('用户名', { exact: true }).fill('test-engineer')
@@ -50,9 +50,9 @@ test('continuous sensors show quality, preserve simulation isolation and provide
     await panel.getByRole('button', { name: '连接拉力并采集', exact: true }).click()
     await expect(panel.getByText('持续采集中', { exact: true })).toBeVisible()
     await expect(panel.locator('.hw-sensor-value')).toContainText('12.34')
-    await expect(page.getByLabel('串口', { exact: true })).toBeDisabled()
+    await expect(page.getByLabel('串口', { exact: true })).toBeEnabled()
     await expect(page.getByRole('button', { name: '连接验证', exact: true })).toBeDisabled()
-    await expect(page.getByText('模拟试验 · 支持真实只读采集', { exact: true })).toBeVisible()
+    await expect(page.getByText('真实硬件连接', { exact: true })).toBeVisible()
     await app.evaluate(() => { (globalThis as any).__sensorQuality = 'stale' })
     await expect(panel.getByText(/数据质量：已过期/)).toBeVisible()
     await expect(panel.locator('.hw-sensor-value')).toContainText('—')

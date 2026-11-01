@@ -80,7 +80,7 @@ export function SensorConnections({ controller, unlocked, disabled, visible, onA
 
   return <section className="hw-sensor-panel" hidden={!visible} aria-label="真实传感器采集">
     <h3>真实传感器只读采集</h3>
-    <p className="hw-note">连接后自动独立记录到 SQLite，不进入模拟试验或其 CSV。断线不自动重连；离开设置页或权限锁定不会自动结束采集，可使用停止/急停结束，或重新解锁后断开。</p>
+    <p className="hw-note">连接后将真实反馈独立记录到 SQLite，不等于已建立联动试验记录。断线不自动重连；离开设置页或权限锁定不会自动结束采集，可使用停止/急停结束，或重新解锁后断开。</p>
     {(error || statusError) && <p role="alert" className="settings-warning">{error || statusError}</p>}
     <div className="hw-grid">{(['tension', 'displacement'] as const).map(section => {
       const status = statuses[section]

@@ -15,7 +15,7 @@ test('serial scan presents ports, preserves drafts and distinguishes empty and f
   const app = await electron.launch({ args: ['.', `--user-data-dir=${join(data, 'ui')}`], env: { ...process.env, LAB_DATA_DIR: data, LAB_DEVICE_DEBUG_USERNAME: 'test-engineer', LAB_DEVICE_DEBUG_PASSWORD: 'hardware-tests-only' } })
   try {
     const page = await app.firstWindow()
-    await expect(page.getByText('设备已就绪', { exact: true })).toBeVisible()
+    await expect(page.getByText(/设备未就绪|设备异常/, { exact: true })).toBeVisible()
     await page.getByRole('button', { name: '设置', exact: true }).click()
     await page.getByRole('button', { name: '设备连接', exact: true }).click()
     await unlock(page)
@@ -58,7 +58,7 @@ test('read-only verification shows asynchronous success, failure and cancellatio
   try {
     const page = await app.firstWindow()
     page.on('dialog', dialog => { void dialog.accept() })
-    await expect(page.getByText('设备已就绪', { exact: true })).toBeVisible()
+    await expect(page.getByText(/设备未就绪|设备异常/, { exact: true })).toBeVisible()
     await page.getByRole('button', { name: '设置', exact: true }).click()
     await page.getByRole('button', { name: '设备连接', exact: true }).click()
     await unlock(page)
@@ -97,7 +97,7 @@ test('read-only verification shows asynchronous success, failure and cancellatio
     await expect(page.getByLabel('串口', { exact: true })).toBeDisabled()
     await expect(page.getByRole('status').filter({ hasText: '只读通信验证通过' })).toBeVisible()
     await expect(page.getByText(/本次读取：.*1234/)).toBeVisible()
-    await expect(page.getByText('模拟试验 · 支持真实只读采集', { exact: true })).toBeVisible()
+    await expect(page.getByText('真实硬件连接', { exact: true })).toBeVisible()
     await page.screenshot({ path: '/tmp/cabbage-hardware-verification.png', fullPage: true })
     await verify.click()
     await expect(page.getByRole('status').filter({ hasText: '验证失败：响应超时' })).toBeVisible()
@@ -119,7 +119,7 @@ test('hardware draft persistence, bindings, module selection and unsaved navigat
     const page = await app.firstWindow()
     const errors: string[] = []
     page.on('pageerror', error => errors.push(error.message))
-    await expect(page.getByText('设备已就绪', { exact: true })).toBeVisible()
+    await expect(page.getByText(/设备未就绪|设备异常/, { exact: true })).toBeVisible()
     await page.getByRole('button', { name: '设置', exact: true }).click()
     await page.getByRole('button', { name: '设备连接', exact: true }).click()
     await unlock(page)
@@ -144,7 +144,7 @@ test('hardware draft persistence, bindings, module selection and unsaved navigat
     await page.getByRole('button', { name: '检查电子皮肤配置', exact: true }).click()
     await expect(page.getByRole('status').filter({ hasText: '配置检查通过' })).toBeVisible()
     await expect(page.getByRole('button', { name: '连接验证', exact: true })).toBeDisabled()
-    await expect(page.getByText(/整机试验仍为模拟/).first()).toBeVisible()
+    await expect(page.getByText('真实硬件连接', { exact: true })).toBeVisible()
     await page.getByLabel('连接方式').selectOption('serial')
     await page.getByLabel('串口', { exact: true }).nth(0).fill('COM3')
     await page.getByLabel('串口', { exact: true }).nth(1).fill('com3')
@@ -183,16 +183,15 @@ test('hardware draft persistence, bindings, module selection and unsaved navigat
   }
 })
 
-test('hardware settings preserve the simulated experiment workflow', async () => {
+test('hardware settings remain accessible after a hardware-free emergency stop', async () => {
   const data = await mkdtemp(join(tmpdir(), 'lab-hardware-workflow-'))
   const app = await electron.launch({ args: ['.', `--user-data-dir=${join(data, 'ui')}`], env: { ...process.env, LAB_DATA_DIR: data, LAB_DEVICE_DEBUG_USERNAME: 'test-engineer', LAB_DEVICE_DEBUG_PASSWORD: 'hardware-tests-only' } })
   try {
     const page = await app.firstWindow()
-    await expect(page.getByText('设备已就绪', { exact: true })).toBeVisible()
-    await page.getByRole('switch', { name: '1 号电机启停' }).click()
-    await page.getByRole('switch', { name: '2 号电机启停' }).click()
-    await page.getByRole('button', { name: '联动开始', exact: true }).click()
-    await expect(page.getByText('联动试验中', { exact: true })).toBeVisible()
+    await expect(page.getByText(/设备未就绪|设备异常/, { exact: true })).toBeVisible()
+    await expect(page.getByRole('switch', { name: '1 号电机启停' })).toBeDisabled()
+    await expect(page.getByRole('switch', { name: '2 号电机启停' })).toBeDisabled()
+    await expect(page.getByRole('button', { name: '联动开始', exact: true })).toBeDisabled()
     await page.getByRole('button', { name: '紧急停止', exact: true }).click()
     await expect(page.getByText('设备已急停', { exact: true })).toBeVisible()
     await page.getByRole('button', { name: '设置', exact: true }).click()

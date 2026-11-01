@@ -41,7 +41,7 @@ export default function App() {
     <div className={state?.stopped ? 'stopped' : ''}>
       <IconDefinitions />
       <ScreenViewport variant={page}>
-        {page === 'dashboard' && <AppHeader stopped={state?.stopped ?? false} running={state?.running ?? false} online={online}
+        {page === 'dashboard' && <AppHeader readiness={state?.readiness} stopped={state?.stopped ?? false} running={state?.running ?? false} online={online}
           onSettings={() => setPage('settings')}
           onEmergency={() => { void send({ type: 'emergency' }) }} onReset={() => setDialog('reset')} />}
         {page === 'settings'

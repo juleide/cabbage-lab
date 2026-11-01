@@ -12,12 +12,18 @@ from ..core.controller import Controller
 MAX_LINE = 1024 * 1024
 MOTION_BARRIERS = frozenset(('system.shutdown', 'system.suspend', 'system.motion.lock',
     'hardware.motion.stop', 'hardware.motion.disconnect', 'hardware.motor.stop', 'hardware.motor.disconnect'))
-MOTION_STARTS = frozenset(('hardware.motion.connect', 'hardware.motor.connect', 'hardware.motor.start'))
+MOTION_STARTS = frozenset(('hardware.motion.connect', 'hardware.motor.connect', 'hardware.motor.start', 'hardware.save'))
 
 
 def stops_motion(method, params):
     return method in MOTION_BARRIERS or (method == 'device.command' and isinstance(params, dict)
-                                        and params.get('type') in ('emergency', 'stop'))
+        and (params.get('type') in ('emergency', 'stop') or
+             (params.get('type') == 'motor' and params.get('enabled') is False)))
+
+
+def starts_motion(method, params):
+    return method in MOTION_STARTS or (method == 'device.command' and isinstance(params, dict)
+        and params.get('type') == 'motor' and params.get('enabled') is True)
 
 
 def request_priority(method, params):
@@ -129,6 +135,7 @@ def serve(root):
             try:
                 _, sequence, message = inbox.get(timeout=min(0.05, max(0, next_tick - time.monotonic())))
             except queue.Empty:
+                controller.apply_pending_connections()
                 continue
             request_id = message.get('id')
             if not isinstance(request_id, str) or len(request_id) > 100:
@@ -143,7 +150,7 @@ def serve(root):
                 # otherwise they could reopen a port after authorization was locked.
                 if stops_motion(method, params):
                     motion_stop_sequence = max(motion_stop_sequence, sequence)
-                if method in MOTION_STARTS and sequence < motion_stop_sequence:
+                if starts_motion(method, params) and sequence < motion_stop_sequence:
                     raise ValueError('该连接/启动请求已被后续停止或权限锁定作废，请确认安全后重新操作')
                 if method == 'system.ping':
                     heartbeat = time.monotonic()

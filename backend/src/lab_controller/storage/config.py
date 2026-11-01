@@ -1,4 +1,4 @@
-"""Versioned simulation configuration; hardware connections are not implemented."""
+"""Versioned experiment settings, separate from hardware connection parameters."""
 import copy
 import json
 import math
@@ -18,7 +18,7 @@ def validate_config(value):
         raise ValueError('不支持的配置版本')
     pressure = value['defaultPressure']
     if type(pressure) not in (int, float) or not math.isfinite(pressure) or not 0 <= pressure <= 0.6:
-        raise ValueError('模拟气压必须在 0～0.6 MPa 范围内')
+        raise ValueError('默认气压设定必须在 0～0.6 MPa 范围内，不代表实测反馈或机械安全限值')
     interval = value['sampleIntervalMs']
     if type(interval) is not int or not 100 <= interval <= 5000:
         raise ValueError('采样间隔必须是 100～5000 毫秒的整数')
@@ -39,7 +39,12 @@ class ConfigStore:
             try:
                 self.value = validate_config(json.loads(path.read_text(encoding='utf-8')))
             except (ValueError, OSError) as exc:
-                self.error = f'配置读取失败，当前使用模拟默认值：{exc}'
+                self.error = f'配置读取失败，当前使用内置默认值：{exc}'
+        else:
+            try:
+                self.save(self.value)
+            except OSError as exc:
+                self.error = f'首次试验配置写入失败，当前使用内置默认值：{exc}'
 
     def save(self, value):
         checked = validate_config(value)

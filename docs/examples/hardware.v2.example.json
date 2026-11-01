@@ -10,8 +10,8 @@
       "timeoutMs": 1000,
       "intervalMs": 100
     },
-    "motor1": null,
-    "motor2": null,
+    "motor1": 1,
+    "motor2": 2,
     "operation": {
       "motor1": {
         "direction": null,
@@ -80,7 +80,7 @@
       "timeoutMs": 1000,
       "intervalMs": 100
     },
-    "station": null,
+    "station": 1,
     "unit": "原始值",
     "decimals": 0
   },

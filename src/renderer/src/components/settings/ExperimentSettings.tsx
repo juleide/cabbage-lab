@@ -40,7 +40,7 @@ export function ExperimentSettings({ draft, disabled, saving, error, onChange, o
         </fieldset>
       </form>
       <p className="settings-hint">停止试验和全部执行机构后可保存配置，保存后立即生效。</p>
-      <p className="settings-warning">气压范围仅用于模拟，不代表真实设备的安全限值。</p>
+      <p className="settings-warning">默认气压是设定参数，不是实测值，也不代表真实设备的安全限值。</p>
     </section>
   )
 }
