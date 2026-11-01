@@ -10,7 +10,7 @@ test('stop-only motion diagnostics keep hardware outcome distinct from simulatio
     const page = await app.firstWindow()
     const errors: string[] = []
     page.on('pageerror', error => errors.push(error.message))
-    page.on('dialog', dialog => { void dialog.accept() })
+    page.on('dialog', dialog => { void dialog.accept().catch(() => {}) })
     await expect(page.getByText('设备已就绪', { exact: true })).toBeVisible()
     await page.getByRole('button', { name: '设置', exact: true }).click()
     await page.getByRole('button', { name: '设备连接', exact: true }).click()
@@ -90,9 +90,11 @@ test('stop-only motion diagnostics keep hardware outcome distinct from simulatio
   }
 })
 
-test('real IPC and debug lock stop both fake motor stations before closing their port', async () => {
+for (const triggerGuard of [false, true]) {
+test(`real IPC ${triggerGuard ? 'diagnostic guard' : 'debug lock'} stops both fake motor stations before closing their port`, async () => {
   const data = await mkdtemp(join(tmpdir(), 'lab-motion-ipc-'))
   const journal = join(data, 'serial-events.jsonl')
+  const signal = join(data, 'inject-running')
   await writeFile(join(data, 'serial.py'), `
 import json, os, time
 from lab_controller.devices.modbus import frame
@@ -107,7 +109,8 @@ class Serial:
     def write(self, data):
         record('write', hex=data.hex())
         if data[1] == 3:
-            payload = bytes([0, 16]) if data[3] == 4 else bytes([0, 0, 19, 136])
+            word = 4 if os.path.exists(os.environ['LAB_MOTION_GUARD_SIGNAL']) else 16
+            payload = bytes([0, word]) if data[3] == 4 else bytes([0, 0, 19, 136])
             self.buffer.extend(frame(bytes([data[0], 3, len(payload)]) + payload))
         if data[1] == 6: self.buffer.extend(data)
         return len(data)
@@ -117,10 +120,10 @@ class Serial:
         del self.buffer[:size]
         return result
 `)
-  const app = await electron.launch({ args: ['.', `--user-data-dir=${join(data, 'ui')}`], env: { ...process.env, LAB_DATA_DIR: data, PYTHONPATH: data, LAB_MOTION_TEST_WRITES: journal, LAB_DEVICE_DEBUG_USERNAME: 'test-engineer', LAB_DEVICE_DEBUG_PASSWORD: 'motion-ipc-tests-only' } })
+  const app = await electron.launch({ args: ['.', `--user-data-dir=${join(data, 'ui')}`], env: { ...process.env, LAB_DATA_DIR: data, PYTHONPATH: data, LAB_MOTION_TEST_WRITES: journal, LAB_MOTION_GUARD_SIGNAL: signal, LAB_DEVICE_DEBUG_USERNAME: 'test-engineer', LAB_DEVICE_DEBUG_PASSWORD: 'motion-ipc-tests-only' } })
   try {
     const page = await app.firstWindow()
-    page.on('dialog', dialog => { void dialog.accept() })
+    page.on('dialog', dialog => { void dialog.accept().catch(() => {}) })
     await expect(page.getByText('设备已就绪', { exact: true })).toBeVisible()
     await page.getByRole('button', { name: '设置', exact: true }).click()
     await page.getByRole('button', { name: '设备连接', exact: true }).click()
@@ -132,7 +135,7 @@ class Serial:
     await login()
     await page.getByRole('button', { name: '执行机构', exact: true }).click()
     await page.getByLabel('共用串口', { exact: true }).fill('OFFLINE-FAKE-MOTORS')
-    await page.getByLabel('波特率', { exact: true }).fill('9600')
+    await page.getByLabel('波特率', { exact: true }).selectOption('9600')
     await page.getByLabel('1 号电机站号', { exact: true }).fill('1')
     await page.getByLabel('2 号电机站号', { exact: true }).fill('2')
     await page.getByRole('button', { name: '保存草稿', exact: true }).click()
@@ -143,6 +146,15 @@ class Serial:
     await expect(panel.getByText(/motor2：原始位置 5000/)).toBeVisible()
     const readJournal = async () => (await readFile(journal, 'utf8')).trim().split('\n').map(line => JSON.parse(line) as { kind: string; hex?: string })
     expect((await readJournal()).filter(event => event.kind === 'write').every(event => event.hex!.slice(2, 4) === '03')).toBe(true)
+    await expect(panel.getByText(/诊断联锁：后台观察中/)).toBeVisible()
+    if (triggerGuard) {
+      await writeFile(signal, 'inject running bit')
+      await expect(panel.getByText(/诊断联锁：已触发锁存/)).toBeVisible()
+      await expect(panel.getByText('诊断故障', { exact: true })).toBeVisible()
+      await expect(panel.getByText(/motor2：原始位置 5000/)).toHaveCount(0)
+      await expect.poll(async () => (await readJournal()).at(-1)?.kind).toBe('close')
+      await panel.screenshot({ path: '/tmp/cabbage-diagnostic-guard.png' })
+    }
     await page.getByRole('button', { name: '外观与主题', exact: true }).click()
     await expect.poll(async () => (await readJournal()).at(-1)?.kind).toBe('close')
     const events = await readJournal()
@@ -153,7 +165,8 @@ class Serial:
     await expect(page.getByRole('heading', { name: '设备调试', exact: true })).toBeVisible()
     await login()
     const status = await page.evaluate(() => window.labDesktop!.request<any>('hardware.motion.status'))
-    expect(status.motors.state).toBe('disconnected')
+    expect(status.motors.state).toBe(triggerGuard ? 'failed' : 'disconnected')
+    expect(status.motors.diagnosticGuard.state).toBe(triggerGuard ? 'tripped' : 'closed')
     expect(status.motors.faultLatched).toBe(true)
     expect(Object.values(status.motors.commands).every((command: any) => command.state === 'acknowledged' && !command.motionConfirmed)).toBe(true)
   } finally {
@@ -162,3 +175,4 @@ class Serial:
     await rm(data, { recursive: true, force: true })
   }
 })
+}

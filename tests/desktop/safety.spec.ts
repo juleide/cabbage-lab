@@ -79,7 +79,7 @@ test('safety draft saves via real IPC, plans offline and invalidates after conne
     await page.getByLabel('设备/工装编号（人工记录）', { exact: true }).fill('OFFLINE-TEST-ONLY')
     await page.getByRole('button', { name: '仅计算离线目标', exact: true }).click()
     await expect(page.getByRole('status').filter({ hasText: '离线结果（不可执行）' })).toBeVisible()
-    const changed = hardware()
+    const changed = await page.evaluate(() => window.labDesktop!.request<any>('hardware.get')).then(value => value.config)
     changed.motors.motor1 = 3
     await page.evaluate(config => window.labDesktop!.request('hardware.save', { config }), changed)
     await expect(page.getByText(/未绑定或保存的连接配置已变化/)).toBeVisible()

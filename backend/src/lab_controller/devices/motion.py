@@ -15,6 +15,7 @@ from .modbus import ReadOnlyBus, crc16, open_serial
 from .motion_protocol import (LiftFeedbackParser, lift_stop_request, motor_position, motor_status,
                               motor_stop_ack, motor_stop_request)
 from .sensors import port_key
+from ..storage.hardware import MOTOR_BAUDS, MOTOR_FORMATS
 
 SECTIONS = ('motors', 'lift')
 
@@ -59,12 +60,16 @@ class MotionSession:
         self.audit_overflow = False
         self.last_received = {}
         self.position_received = {}
+        self.guard_done = threading.Event()
+        self.guard_thread = None
         self.targets = ('motor1', 'motor2') if section == 'motors' else ('lift',)
         self.status = dict(sessionId=uuid.uuid4().hex, section=section, source='hardware',
                            state='connecting', readings={}, commands={}, faultLatched=False,
                            error=None, startedAt=time.time(), finishedAt=None,
                            configVersion=hashlib.sha256(json.dumps(config, sort_keys=True).encode()).hexdigest(),
                            staleAfterMs=max(1000, config['serial']['intervalMs'] * 3),
+                           diagnosticGuard=dict(state='waiting', reason=None, trippedAt=None,
+                               intervalMs=50, physicalStopConfirmed=False),
                            motionAllowed=False, auditDropped=0)
         self.thread = threading.Thread(target=self.run, name=f'motion-{section}', daemon=True)
 
@@ -88,7 +93,11 @@ class MotionSession:
                     reading['position']['ageMs'] = position_age
                     reading['position']['quality'] = ('valid' if position_age <= value['staleAfterMs']
                         and value['state'] == 'monitoring' else 'stale')
+            self.decorate_snapshot_locked(value)
             return value
+
+    def decorate_snapshot_locked(self, value):
+        pass
 
     def collect(self):
         with self.lock:
@@ -96,27 +105,69 @@ class MotionSession:
             self.audit.clear()
             return events
 
-    def stop(self, emergency=False, close=False):
+    def trip(self, reason):
         with self.lock:
-            if self.status['state'] in ('failed', 'disconnected'):
+            guard = self.status['diagnosticGuard']
+            if guard['state'] in ('tripped', 'closed') or self.status['state'] in ('failed', 'disconnected'):
                 return
-            self.closing |= close
-            if close:
-                self.status['state'] = 'disconnecting'
-            if emergency:
-                self.status['faultLatched'] = True
-                self.preempt.set()
-            for target in self.targets:
-                existing = self.pending.get(target)
-                # Coalesce bounded stop requests; ordinary stop cannot downgrade emergency.
-                if existing is None or (emergency and not existing['emergency']):
-                    command = dict(id=uuid.uuid4().hex, emergency=emergency,
-                                   state='queued', requestedAt=time.time(), error=None,
-                                   motionConfirmed=False)
-                    self.pending[target] = command
-                    self.status['commands'][target] = copy.deepcopy(command)
-                    self.note_locked(f"{target} 停止入队 id={command['id']} emergency={emergency}")
-            self.wake.set()
+            guard.update(state='tripped', reason=reason, trippedAt=time.time())
+            self.status.update(faultLatched=True, error=reason)
+            self.note_locked(f'诊断联锁触发：{reason}；请求停止并关闭，机械停止未确认')
+        self.stop(emergency=True, close=True)
+
+    def guard_check(self):
+        """Diagnostic freshness only; never infer physical position or grant motion."""
+        reason = None
+        with self.lock:
+            if self.status['state'] != 'monitoring' or self.status['diagnosticGuard']['state'] == 'tripped':
+                return
+            now = time.monotonic()
+            threshold = self.status['staleAfterMs'] / 1000
+            for target, received in self.last_received.items():
+                if now - received > threshold:
+                    reason = f'{target} 已收到的状态/反馈超过诊断新鲜度阈值'
+                    break
+            if reason is None:
+                for target, received in self.position_received.items():
+                    if now - received > threshold:
+                        reason = f'{target} 已收到的原始位置超过诊断新鲜度阈值'
+                        break
+            if self.last_received and self.status['diagnosticGuard']['state'] == 'waiting':
+                self.status['diagnosticGuard']['state'] = 'observing'
+        if reason:
+            self.trip(reason)
+
+    def watch_guard(self):
+        while not self.guard_done.wait(0.05):
+            self.guard_check()
+
+    def stop(self, emergency=False, close=False, target=None):
+        if target is not None and target not in self.targets:
+            raise ValueError('无效的停止目标')
+        with self.lock:
+            self.stop_locked(emergency, close, target)
+
+    def stop_locked(self, emergency=False, close=False, target=None):
+        """Enqueue while holding the session lock, including subclass cancellation."""
+        if self.status['state'] in ('failed', 'disconnected'):
+            return
+        self.closing |= close
+        if close:
+            self.status['state'] = 'disconnecting'
+        if emergency:
+            self.status['faultLatched'] = True
+            self.preempt.set()
+        for target in self.targets if target is None else (target,):
+            existing = self.pending.get(target)
+            # Coalesce bounded stop requests; ordinary stop cannot downgrade emergency.
+            if existing is None or (emergency and not existing['emergency']):
+                command = dict(id=uuid.uuid4().hex, emergency=emergency,
+                               state='queued', requestedAt=time.time(), error=None,
+                               motionConfirmed=False)
+                self.pending[target] = command
+                self.status['commands'][target] = copy.deepcopy(command)
+                self.note_locked(f"{target} 停止入队 id={command['id']} emergency={emergency}")
+        self.wake.set()
 
     def take_stop(self):
         with self.lock:
@@ -162,13 +213,12 @@ class MotionSession:
             self.status['readings'][target] = dict(reading, receivedAt=time.time(), quality='valid')
             if position is not None:
                 self.status['readings'][target]['position'] = position
-            fault = reading.get('fault', False) or reading.get('kind') == 'error'
-            first_fault = fault and not self.status['faultLatched']
-            if fault:
-                self.status['faultLatched'] = True
-                self.note_locked(f'{target} 故障反馈：{reading}')
-        if first_fault:
-            self.stop(emergency=True)
+            flags = [label for key, label in (('fault', '故障位'), ('running', '运行位'),
+                     ('positiveLimit', '正软限位'), ('negativeLimit', '负软限位')) if reading.get(key)]
+            if reading.get('kind') == 'error':
+                flags.append(f"错误反馈 code={reading['code']}（不自动清错）")
+        if flags:
+            self.trip(f'{target} {" / ".join(flags)}；只读诊断不允许运动')
 
     def update_position(self, target, words):
         position = motor_position(words)
@@ -176,8 +226,28 @@ class MotionSession:
             self.position_received[target] = time.monotonic()
             self.status['readings'][target]['position'] = dict(position, receivedAt=time.time(), quality='valid')
 
+    def work_pending(self, port, bus):
+        return False
+
+    def poll_target(self, bus, target):
+        word = bus.read(int(self.config[target]), 4, 1)[0]
+        if self.wake.is_set():
+            return
+        self.update_reading(target, dict(raw=word, **motor_status(word)))
+        # Separate transactions are not a simultaneous status/position snapshot.
+        if not self.wake.is_set():
+            words = bus.read(int(self.config[target]), 8, 2)
+            if not self.wake.is_set():
+                self.update_position(target, words)
+
+    def finish_locked(self):
+        pass
+
+    def failure_stops(self, port, bus):
+        pass
+
     def run(self):
-        port, error = None, None
+        port, bus, error = None, None, None
         try:
             with self.lock:
                 # A disconnect queued before opening must never open the device later.
@@ -190,6 +260,8 @@ class MotionSession:
                 if not self.closing:
                     self.status['state'] = 'monitoring'
                 self.note_locked('串口已打开；连接不发送运动或辅助控制')
+            self.guard_thread = threading.Thread(target=self.watch_guard, name=f'motion-guard-{self.section}', daemon=True)
+            self.guard_thread.start()
             next_poll = 0
             while True:
                 stop = self.take_stop()
@@ -204,40 +276,35 @@ class MotionSession:
                         raise ValueError('运动审计缓冲溢出，结束会话；请现场确认安全')
                     if self.closing:
                         break
+                if self.work_pending(port, bus):
+                    continue
                 if self.section == 'lift':
                     for event in parser.feed(port.read(256)):
                         self.update_reading('lift', event)
                 elif time.monotonic() >= next_poll:
                     for target in self.targets:
                         try:
-                            word = bus.read(int(self.config[target]), 4, 1)[0]
+                            self.poll_target(bus, target)
                         except ValueError:
                             if self.wake.is_set():
                                 break
                             raise
                         if self.wake.is_set():
                             break
-                        self.update_reading(target, dict(raw=word, **motor_status(word)))
-                        # Separate transactions are not a simultaneous status/position snapshot.
-                        if self.wake.is_set():
-                            break
-                        try:
-                            words = bus.read(int(self.config[target]), 8, 2)
-                        except ValueError:
-                            if self.wake.is_set():
-                                break
-                            raise
-                        if self.wake.is_set():
-                            break
-                        self.update_position(target, words)
                     next_poll = time.monotonic() + self.config['serial']['intervalMs'] / 1000
                 else:
                     self.wake.wait(min(0.05, max(0, next_poll - time.monotonic())))
         except Exception as exc:
             error = str(exc)
+            self.trip(f'诊断通信失败：{error}')
             with self.lock:
                 self.status.update(state='disconnecting', error=error, faultLatched=True)
+            if port is not None and bus is not None:
+                self.failure_stops(port, bus)
         finally:
+            self.guard_done.set()
+            if self.guard_thread is not None:
+                self.guard_thread.join(timeout=0.2)
             if port is not None:
                 try:
                     port.close()
@@ -248,8 +315,12 @@ class MotionSession:
                     self.status['commands'][target] = dict(command, state='unknown',
                         error='会话已结束，未发送；设备是否停止未知', finishedAt=time.time())
                 self.pending.clear()
-                self.status.update(state='failed' if error else 'disconnected',
+                guard = self.status['diagnosticGuard']
+                if guard['state'] != 'tripped':
+                    guard['state'] = 'closed'
+                self.status.update(state='failed' if error or guard['state'] == 'tripped' else 'disconnected',
                                    error=error or self.status['error'], finishedAt=time.time())
+                self.finish_locked()
                 if error:
                     self.status['faultLatched'] = True
                 self.note_locked('会话结束；关闭串口不代表设备停止' + (f'：{error}' if error else ''))
@@ -264,9 +335,11 @@ class MotionManager:
     def active(self):
         return any(session.thread.is_alive() for session in self.sessions.values())
 
-    def connect(self, section, config):
+    def connect(self, section, config, *, control=False):
         if self.closed or section not in SECTIONS:
             raise ValueError('不支持的运动设备连接')
+        if control and section != 'motors':
+            raise ValueError('控制用途只支持电机总线')
         if section == 'lift' and (config['interface'] != 'RS232'
                 or any(config['serial'][key] != value for key, value in
                        dict(baud=38400, bits=8, parity='N', stop=1).items())):
@@ -275,13 +348,19 @@ class MotionManager:
                 or not 1 <= config[key] <= 247 or int(config[key]) != config[key]
                 for key in ('motor1', 'motor2')) or config['motor1'] == config['motor2']):
             raise ValueError('两个电机必须使用不同的 1～247 站号')
-        if section == 'motors' and config['serial']['baud'] not in (9600, 19200, 38400, 115200):
+        if section == 'motors' and config['serial']['baud'] not in MOTOR_BAUDS:
             raise ValueError('电机波特率必须为协议支持的 9600/19200/38400/115200')
+        if section == 'motors' and tuple(config['serial'][key] for key in ('bits', 'parity', 'stop')) not in MOTOR_FORMATS:
+            raise ValueError('电机串口格式仅支持 8N1、8N2、8E1、8O1')
         for key, session in self.sessions.items():
             if session.thread.is_alive() and (key == section or
                     port_key(session.config['serial']['port']) == port_key(config['serial']['port'])):
                 raise ValueError('设备会话或端口已被占用，请先断开')
-        session = MotionSession(section, config, self.factory)
+        if control:
+            from .motor_control import MotorControlSession
+            session = MotorControlSession(config, self.factory)
+        else:
+            session = MotionSession(section, config, self.factory)
         self.sessions[section] = session
         try:
             session.thread.start()

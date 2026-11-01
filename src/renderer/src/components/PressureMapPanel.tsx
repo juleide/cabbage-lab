@@ -48,7 +48,7 @@ export function PressureMapPanel({ range, idle, notify, onEmergency }: { range: 
       <div className="heat-area" id="pressure-map" role="tabpanel" aria-labelledby={`mode-${view.mode}`}>
         <div className="heatmap-stage"><div className="heat-wrap">{!details && heatmap}</div></div>
         <div className="scale"><span>{range.minimum}</span><div className="gradient" style={{ background: PRESSURE_GRADIENT }} /><span>{range.maximum}</span></div>
-        <div className="scale-label map-point-readout">{selected && point ? `${selected.row + 1}行 ${selected.column + 1}列 · 原始 ${point.raw.toFixed(0)} / 修正 ${point.display.toFixed(2)}` : `${view.correction.active ? '修正值' : '原始值'} · 模拟阵列 · 点击查看点位`}{reading.status && <small>非实时</small>}</div>
+        <div className="scale-label map-point-readout">{selected && point ? `${selected.row + 1}行 ${selected.column + 1}列 · 原始 ${point.raw.toFixed(0)} / 修正 ${point.display.toFixed(2)}` : `${view.correction.active ? '修正值' : '原始值'} · 等待真实阵列数据`}{reading.status && <small>非实时</small>}</div>
       </div>
       {details && <PressureDetailsDialog view={view} readout={reading.frame} stale={reading.status} selected={selected} idle={idle}
         onEmergency={onEmergency} onStart={() => { void correct(true) }} onClear={() => { void correct(false) }} onClose={() => setDetails(false)}>

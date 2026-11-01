@@ -7,8 +7,9 @@ const metrics: { name: string; unit: string; value: (values: Measurements) => nu
   { name: '水平拖动速度', unit: 'mm/s', value: v => v.speed },
   { name: '动摩擦系数', unit: '—', value: v => v.coefficient, precision: 3 },
   { name: '夹爪实时气压', unit: 'MPa', value: v => v.pressure },
-  { name: '抓取接触面积', unit: 'cm²', value: v => v.area * 0.68 },
-  { name: '抓取力', unit: 'N', value: v => v.normal * 0.74 }
+  // Keep the original cards, but never infer grip measurements with demo ratios.
+  { name: '抓取接触面积', unit: 'cm²', value: () => 0 },
+  { name: '抓取力', unit: 'N', value: () => 0 }
 ]
 export function MetricsPanel({ values, stopped, online }: { values: Measurements; stopped: boolean; online: boolean }) {
   return (

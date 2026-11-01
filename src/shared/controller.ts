@@ -67,7 +67,7 @@ export interface PressureFrame {
   displayStatistics: ArrayStatistics
   mode: MapMode
   generation: number
-  source: 'simulation'
+  source: 'hardware'
   stats: ArrayDiagnostics
 }
 export interface LabState {
@@ -104,8 +104,8 @@ export type DeviceCommand =
   | { type: 'pressure'; value: number }
   | { type: 'database'; value: string }
 
-export type ControllerMethod = 'hardware.safety.get' | 'hardware.safety.status' | 'hardware.safety.save' | 'hardware.safety.preview' | 'hardware.motion.status' | 'hardware.motion.connect' | 'hardware.motion.stop' | 'hardware.motion.disconnect' | 'hardware.sensors.status' | 'hardware.sensors.connect' | 'hardware.sensors.disconnect' | 'hardware.sensors.zero' | 'hardware.sensors.records.list' | 'hardware.sensors.records.read' | 'hardware.status' | 'hardware.verify' | 'hardware.verify.cancel' | 'hardware.ports.list' | 'hardware.get' | 'hardware.save' | 'hardware.check' | 'state.get' | 'device.command' | 'config.get' | 'config.update' | 'logs.list' | 'records.list' | 'pressure.mode' | 'pressure.status' | 'pressure.zero.start' | 'pressure.zero.clear'
-export const rendererMethods: readonly string[] = ['hardware.safety.get', 'hardware.safety.status', 'hardware.safety.save', 'hardware.safety.preview', 'hardware.motion.status', 'hardware.motion.connect', 'hardware.motion.stop', 'hardware.motion.disconnect', 'hardware.sensors.status', 'hardware.sensors.connect', 'hardware.sensors.disconnect', 'hardware.sensors.zero', 'hardware.sensors.records.list', 'hardware.sensors.records.read', 'hardware.status', 'hardware.verify', 'hardware.verify.cancel', 'hardware.ports.list', 'hardware.get', 'hardware.save', 'hardware.check', 'state.get', 'device.command', 'config.get', 'config.update', 'logs.list', 'records.list', 'pressure.mode', 'pressure.status', 'pressure.zero.start', 'pressure.zero.clear']
+export type ControllerMethod = 'hardware.motor.connect' | 'hardware.motor.start' | 'hardware.motor.stop' | 'hardware.motor.status' | 'hardware.motor.disconnect' | 'hardware.safety.get' | 'hardware.safety.status' | 'hardware.safety.save' | 'hardware.safety.preview' | 'hardware.motion.status' | 'hardware.motion.connect' | 'hardware.motion.stop' | 'hardware.motion.disconnect' | 'hardware.sensors.status' | 'hardware.sensors.connect' | 'hardware.sensors.disconnect' | 'hardware.sensors.zero' | 'hardware.sensors.records.list' | 'hardware.sensors.records.read' | 'hardware.status' | 'hardware.verify' | 'hardware.verify.cancel' | 'hardware.ports.list' | 'hardware.get' | 'hardware.save' | 'hardware.check' | 'state.get' | 'device.command' | 'config.get' | 'config.update' | 'logs.list' | 'records.list' | 'pressure.mode' | 'pressure.status' | 'pressure.zero.start' | 'pressure.zero.clear'
+export const rendererMethods: readonly string[] = ['hardware.motor.connect', 'hardware.motor.start', 'hardware.motor.stop', 'hardware.motor.status', 'hardware.motor.disconnect', 'hardware.safety.get', 'hardware.safety.status', 'hardware.safety.save', 'hardware.safety.preview', 'hardware.motion.status', 'hardware.motion.connect', 'hardware.motion.stop', 'hardware.motion.disconnect', 'hardware.sensors.status', 'hardware.sensors.connect', 'hardware.sensors.disconnect', 'hardware.sensors.zero', 'hardware.sensors.records.list', 'hardware.sensors.records.read', 'hardware.status', 'hardware.verify', 'hardware.verify.cancel', 'hardware.ports.list', 'hardware.get', 'hardware.save', 'hardware.check', 'state.get', 'device.command', 'config.get', 'config.update', 'logs.list', 'records.list', 'pressure.mode', 'pressure.status', 'pressure.zero.start', 'pressure.zero.clear']
 
 export type ControllerEvent =
   | { event: 'pressure.frame'; data: PressureFrame }
@@ -118,7 +118,6 @@ export type ControllerEvent =
 export interface AppInfo {
   version: string
   platform: string
-  simulation: true
   dataDir: string
   configDir: string
   logsDir: string

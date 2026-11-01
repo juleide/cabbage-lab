@@ -5,6 +5,33 @@ import math
 import os
 
 SECTIONS = ('motors', 'lift', 'array', 'tension', 'displacement')
+MOTOR_BAUDS = (9600, 19200, 38400, 115200)
+MOTOR_FORMATS = ((8, 'N', 1), (8, 'N', 2), (8, 'E', 1), (8, 'O', 1))
+MAX_MOTOR_RUN_MS = 3600000  # Local one-hour software bound, not a hardware guarantee.
+
+
+def motor_operation():
+    return dict(direction=None, speedRpm=None, maxSpeedRpm=None,
+                accelerationMs=None, decelerationMs=None, maxRunMs=None)
+
+
+def validate_motor_operation(value, complete=False):
+    if not isinstance(value, dict) or set(value) != set(motor_operation()):
+        return ['运行参数字段不完整或包含未知字段']
+    errors = []
+    ranges = dict(direction=(-1, 1), speedRpm=(1, 3000), maxSpeedRpm=(1, 3000),
+                  accelerationMs=(1, 2000), decelerationMs=(1, 2000), maxRunMs=(1, MAX_MOTOR_RUN_MS))
+    for key, (low, high) in ranges.items():
+        number = value[key]
+        if number is None:
+            if complete:
+                errors.append(f'{key}：启动前请填写')
+        elif type(number) is not int or not low <= number <= high or (key == 'direction' and number not in (-1, 1)):
+            errors.append(f'{key}：必须为 {low}～{high} 的整数' + ('，仅允许 -1 或 1' if key == 'direction' else ''))
+    if (type(value['speedRpm']) is int and type(value['maxSpeedRpm']) is int
+            and value['speedRpm'] > value['maxSpeedRpm']):
+        errors.append('speedRpm：运行速度不得超过本轴安全速度上限')
+    return errors
 
 
 def serial(baud=None):
@@ -12,18 +39,22 @@ def serial(baud=None):
 
 
 def defaults():
-    return dict(schemaVersion=1,
-                motors=dict(serial=serial(), motor1=None, motor2=None),
+    return dict(schemaVersion=2,
+                motors=dict(serial=serial(), motor1=1, motor2=2,
+                            operation=dict(motor1=motor_operation(), motor2=motor_operation())),
                 lift=dict(serial=serial(38400), interface='RS232'),
                 array=dict(mode='usb', press=dict(rev=0, serial=serial()), grip=dict(rev=1, serial=serial())),
-                tension=dict(serial=serial(9600), station=None, unit='原始值', decimals=0),
+                tension=dict(serial=serial(9600), station=1, unit='原始值', decimals=0),
                 displacement=dict(serial=serial(9600), station=1, model='', channel=1, reading='raw',
                                   rawMin=0, rawMax=5000, lower=None, upper=None, unit='mm'))
 
 
-def validate(value, complete=False, section=None):
+def validate(value, complete=False, section=None, *, legacy=False):
     errors = []
     template = defaults()
+    if legacy:
+        template['schemaVersion'] = 1
+        del template['motors']['operation']
 
     def shape(data, sample, path):
         if isinstance(sample, dict):
@@ -45,7 +76,7 @@ def validate(value, complete=False, section=None):
     shape(value, template, '设备配置')
     if errors:
         return errors
-    if value['schemaVersion'] != 1:
+    if value['schemaVersion'] != (1 if legacy else 2):
         return ['不支持的设备配置版本']
     if section is not None and section not in SECTIONS:
         return ['无效的设备分类']
@@ -83,7 +114,15 @@ def validate(value, complete=False, section=None):
         bus(value[key]['serial'], key + '.serial')
     motors = value['motors']
     for key in ('motor1', 'motor2'):
-        number(motors[key], 1, 254, 'motors.' + key)
+        number(motors[key], 1, 254 if legacy else 247, 'motors.' + key)
+        if not legacy:
+            errors.extend(f'motors.operation.{key}.{error}' for error in validate_motor_operation(motors['operation'][key]))
+    if not legacy:
+        settings = motors['serial']
+        if settings['baud'] is not None and settings['baud'] not in MOTOR_BAUDS:
+            errors.append('motors.serial.baud：仅支持 9600、19200、38400、115200')
+        if (settings['bits'], settings['parity'], settings['stop']) not in MOTOR_FORMATS:
+            errors.append('motors.serial：仅支持 8N1、8N2、8E1、8O1')
     if motors['motor1'] is not None and motors['motor1'] == motors['motor2']:
         errors.append('motors：两个电机站号不能重复')
     choice(value['lift']['interface'], ('RS232', 'RS485'), 'lift.interface')
@@ -128,12 +167,19 @@ class HardwareStore:
         self.path = path
         self.value = defaults()
         self.error = None
+        self.warnings = []
         if path.exists():
             try:
                 value = json.loads(path.read_text(encoding='utf-8'))
-                errors = validate(value)
+                legacy = isinstance(value, dict) and type(value.get('schemaVersion')) is int and value['schemaVersion'] == 1
+                errors = validate(value, legacy=legacy)
                 if errors:
                     raise ValueError('；'.join(errors))
+                if legacy:
+                    value = copy.deepcopy(value)
+                    value['schemaVersion'] = 2
+                    value['motors']['operation'] = dict(motor1=motor_operation(), motor2=motor_operation())
+                    self.warnings = ['已在内存中迁移旧配置；运行参数留空，原文件未改写。显式保存后写入 v2。'] + validate(value)
                 self.value = value
             except (ValueError, OSError) as exc:
                 self.error = f'设备配置读取失败，原文件未修改：{exc}'
@@ -153,4 +199,5 @@ class HardwareStore:
             os.fsync(stream.fileno())
         temp.replace(self.path)
         self.value = checked
+        self.warnings = []
         return copy.deepcopy(checked)

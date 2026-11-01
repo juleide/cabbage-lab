@@ -39,6 +39,8 @@ def assess(store, hardware, sessions, hardware_error=None, stopped=False):
             reasons.append(dict(code='NOT_CONNECTED', message='没有活动诊断连接'))
         if session and session['faultLatched']:
             reasons.append(dict(code='FAULT_LATCHED', message='诊断会话存在故障/软件急停锁存'))
+        if session and session.get('diagnosticGuard', {}).get('state') == 'tripped':
+            reasons.append(dict(code='DIAGNOSTIC_INTERLOCK', message=session['diagnosticGuard']['reason']))
         if not reading or reading['quality'] != 'valid':
             reasons.append(dict(code='FEEDBACK_UNAVAILABLE', message='没有新鲜有效的目标反馈'))
         if section == 'motors':

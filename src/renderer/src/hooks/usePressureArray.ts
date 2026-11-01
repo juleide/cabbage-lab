@@ -11,7 +11,7 @@ const initial: PressureView = {
 }
 
 function validFrame(frame: PressureFrame) {
-  return frame.width === 64 && frame.height === 64 && frame.source === 'simulation'
+  return frame.width === 64 && frame.height === 64 && frame.source === 'hardware'
     && Array.isArray(frame.values) && frame.values.length === 4096 && frame.values.every(value => Number.isInteger(value) && value >= 0 && value <= 65535)
     && Array.isArray(frame.displayValues) && frame.displayValues.length === 4096 && frame.displayValues.every(Number.isFinite)
 }

@@ -23,8 +23,8 @@ export function Dashboard({ range, notify, state, online, busy, exporting, error
     return (
       <main className="controller-empty panel">
         <h2>等待 Python 控制端就绪</h2>
-        <p>{error || '正在连接模拟设备，请稍候…'}</p>
-        <p>不会在界面中生成备用模拟数据；设备状态以 Python 控制端为准。</p>
+        <p>{error || '正在连接 Python 控制端，请稍候…'}</p>
+        <p>未收到有效真实读数时，实时参数显示为 0。</p>
         <button className="btn" onClick={onSettings}>打开设置与诊断</button>
       </main>
     )

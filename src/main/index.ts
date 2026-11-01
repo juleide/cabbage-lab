@@ -55,9 +55,11 @@ function registerIPC() {
   handler('controller:request', (method: unknown, params: unknown = {}) => {
     if (typeof method !== 'string' || !rendererMethods.includes(method)) throw new Error('不允许的控制方法')
     if (!params || typeof params !== 'object' || Array.isArray(params) || Buffer.byteLength(JSON.stringify(params)) > 64 * 1024) throw new Error('请求参数无效')
-    if (method.startsWith('hardware.')) {
+    // A stop/disconnect must remain available after authorization expires;
+    // these restricted methods cannot open a port or start motion.
+    if (method.startsWith('hardware.') && !['hardware.motor.stop', 'hardware.motor.disconnect'].includes(method)) {
       deviceAuth.require(mainWindow!.webContents.id)
-      if (!['hardware.safety.get', 'hardware.safety.status', 'hardware.motion.status', 'hardware.status', 'hardware.sensors.status', 'hardware.sensors.records.list', 'hardware.sensors.records.read'].includes(method)) {
+      if (!['hardware.safety.get', 'hardware.safety.status', 'hardware.motion.status', 'hardware.motor.status', 'hardware.status', 'hardware.sensors.status', 'hardware.sensors.records.list', 'hardware.sensors.records.read'].includes(method)) {
         deviceAuth.touch(mainWindow!.webContents.id)
       }
     }
@@ -78,7 +80,7 @@ function registerIPC() {
     } finally { restarting = false }
   })
   handler('app:info', () => ({
-    version: app.getVersion(), platform: process.platform, simulation: true,
+    version: app.getVersion(), platform: process.platform,
     dataDir: join(root, 'data'), configDir: join(root, 'config'), logsDir: join(root, 'logs'), python: controller.python
   }))
   handler('app:directory', async (kind: unknown) => {
@@ -141,7 +143,7 @@ else {
   app.on('second-instance', () => { mainWindow?.restore(); mainWindow?.focus() })
   app.whenReady().then(async () => {
     app.setAppUserModelId('com.labcontrol.desktop')
-    // Simulation data never shares the reference project's directories or real hardware data.
+    // Keep the existing user-data root so saved hardware settings and records remain available.
     root = resolve(process.env.LAB_DATA_DIR || join(app.getPath('userData'), 'simulation'))
     for (const kind of ['data', 'config', 'logs']) await mkdir(join(root, kind), { recursive: true })
     const bundledEnv = app.isPackaged ? join(process.resourcesPath, 'config', 'device.env.enc') : undefined

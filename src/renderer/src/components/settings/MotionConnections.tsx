@@ -5,6 +5,7 @@ import type { MotionSection, MotionStatuses } from '../../../../shared/hardware'
 const labels = { motors: '电机总线', lift: '升降装置' }
 const states = { connecting: '连接中', monitoring: '诊断监听中', disconnecting: '停止并断开中', disconnected: '已断开', failed: '诊断故障' }
 const results = { queued: '停止已排队', acknowledged: '收到停止回显，机械停止未确认', sent: '停止已发送，无 ACK，机械停止未确认', unknown: '停止结果未知，请现场确认' }
+const guardStates = { waiting: '等待首份反馈', observing: '后台观察中（不授权运动）', tripped: '已触发锁存', closed: '已结束' }
 const active = (state?: string) => ['connecting', 'monitoring', 'disconnecting'].includes(state || '')
 
 export function MotionConnections({ controller, unlocked, disabled, visible, onActive }: {
@@ -42,7 +43,7 @@ export function MotionConnections({ controller, unlocked, disabled, visible, onA
 
   async function operate(section: MotionSection, operation: 'connect' | 'stop' | 'disconnect', emergency = false) {
     if (!online || !unlocked || (pending && operation === 'connect')) return
-    if (operation === 'connect' && !window.confirm('将打开真实执行机构串口。电机仅查询两个站号的状态和原始位置，升降仅监听 RS232；连接不发送启动、使能或清错。之后点击停止/断开、权限锁定或退出时会发送停止指令，但不能保证机械停止。请确认硬接线急停和现场安全。是否继续？')) return
+    if (operation === 'connect' && !window.confirm('将打开真实执行机构串口。电机仅查询两个站号的状态和原始位置，升降仅监听 RS232；连接不发送启动、使能或清错。后台诊断联锁会在已收到反馈过期、设备故障或电机运行/软限位时请求停止并结束该会话。点击停止/断开、权限锁定或退出也会请求停止，但均不能保证机械停止。请确认硬接线急停和现场安全。是否继续？')) return
     setPending(true); setError('')
     const version = ++revision.current
     try {
@@ -60,11 +61,14 @@ export function MotionConnections({ controller, unlocked, disabled, visible, onA
     <p className="hw-note">仅支持电机状态/原始位置查询、停止/软件急停及升降 RS232 38400/8N1 监听/停止。状态与位置分次读取，非同时快照；位置符号和物理单位待核验，不换算毫米、不作为运动许可。不开放启动、使能、释放、回零、上升或下降。停止回显不等于机械停止；升降高度不是已停反馈。断开会先尽力发送停止，权限锁定、休眠和退出也会请求停止并断开，不自动重连。</p>
     {error && <p className="settings-warning" role="alert">{error}</p>}
     <div className="hw-grid">{(['motors', 'lift'] as const).map(section => {
-      const status = statuses[section]
-      const connected = active(status?.state)
+      const raw = statuses[section]
+      const controlling = raw && 'purpose' in raw && raw.purpose === 'control'
+      const status = controlling ? undefined : raw
+      const connected = active(raw?.state)
       return <article className="hw-box" key={section} aria-label={`${labels[section]}真实诊断`}>
-        <h4>{labels[section]}<span>{!online || !known ? '状态未知' : status ? states[status.state] : '未连接'}</span></h4>
+        <h4>{labels[section]}<span>{!online || !known ? '状态未知' : controlling ? '控制会话，见真实电机启停' : status ? states[status.state] : '未连接'}</span></h4>
         {status && <p className="hw-note">会话 {status.sessionId.slice(0, 8)} · 配置 {status.configVersion.slice(0, 12)} · {status.faultLatched ? '故障/软件急停已锁存（不自动清错）' : '未锁存故障不等于允许运动'}</p>}
+        {status?.diagnosticGuard && <p className={status.diagnosticGuard.state === 'tripped' ? 'settings-warning' : 'hw-note'} role={status.diagnosticGuard.state === 'tripped' ? 'alert' : undefined}>诊断联锁：{guardStates[status.diagnosticGuard.state]}{status.diagnosticGuard.reason && ` · ${status.diagnosticGuard.reason}`}；机械停止未确认。后台检查不依赖界面轮询，不是硬件看门狗。</p>}
         {status?.error && <p className="settings-warning">{status.error}</p>}
         {!!status?.auditDropped && <p className="settings-warning">审计缓冲溢出，缺失 {status.auditDropped} 条，不能视为完整操作记录。</p>}
         {status && !Object.keys(status.readings).length && <p className="hw-note">未收到有效反馈；端口打开不等于设备在线。</p>}

@@ -1,0 +1,107 @@
+{
+  "schemaVersion": 2,
+  "motors": {
+    "serial": {
+      "port": "",
+      "baud": null,
+      "bits": 8,
+      "parity": "N",
+      "stop": 1,
+      "timeoutMs": 1000,
+      "intervalMs": 100
+    },
+    "motor1": null,
+    "motor2": null,
+    "operation": {
+      "motor1": {
+        "direction": null,
+        "speedRpm": null,
+        "maxSpeedRpm": null,
+        "accelerationMs": null,
+        "decelerationMs": null,
+        "maxRunMs": null
+      },
+      "motor2": {
+        "direction": null,
+        "speedRpm": null,
+        "maxSpeedRpm": null,
+        "accelerationMs": null,
+        "decelerationMs": null,
+        "maxRunMs": null
+      }
+    }
+  },
+  "lift": {
+    "serial": {
+      "port": "",
+      "baud": 38400,
+      "bits": 8,
+      "parity": "N",
+      "stop": 1,
+      "timeoutMs": 1000,
+      "intervalMs": 100
+    },
+    "interface": "RS232"
+  },
+  "array": {
+    "mode": "usb",
+    "press": {
+      "rev": 0,
+      "serial": {
+        "port": "",
+        "baud": null,
+        "bits": 8,
+        "parity": "N",
+        "stop": 1,
+        "timeoutMs": 1000,
+        "intervalMs": 100
+      }
+    },
+    "grip": {
+      "rev": 1,
+      "serial": {
+        "port": "",
+        "baud": null,
+        "bits": 8,
+        "parity": "N",
+        "stop": 1,
+        "timeoutMs": 1000,
+        "intervalMs": 100
+      }
+    }
+  },
+  "tension": {
+    "serial": {
+      "port": "",
+      "baud": 9600,
+      "bits": 8,
+      "parity": "N",
+      "stop": 1,
+      "timeoutMs": 1000,
+      "intervalMs": 100
+    },
+    "station": null,
+    "unit": "原始值",
+    "decimals": 0
+  },
+  "displacement": {
+    "serial": {
+      "port": "",
+      "baud": 9600,
+      "bits": 8,
+      "parity": "N",
+      "stop": 1,
+      "timeoutMs": 1000,
+      "intervalMs": 100
+    },
+    "station": 1,
+    "model": "",
+    "channel": 1,
+    "reading": "raw",
+    "rawMin": 0,
+    "rawMax": 5000,
+    "lower": null,
+    "upper": null,
+    "unit": "mm"
+  }
+}

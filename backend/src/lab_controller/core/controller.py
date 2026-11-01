@@ -6,7 +6,7 @@ import uuid
 import time
 from datetime import datetime
 from ..array.acquisition import ArrayAcquisition
-from ..devices.simulated import DEVICE_NAMES, SimulatedDevice
+from ..devices.readings import RealReadings
 from ..devices.ports import list_ports
 from ..devices.verification import VerificationManager, SUPPORTED
 from ..devices.sensors import SensorManager, SECTIONS as SENSOR_SECTIONS
@@ -39,10 +39,11 @@ class Controller:
         self.motion_finished = {}
         self.sensor_finished = {}
         self.sensor_sequences = {}
+        self.displacement_previous = None
         self.records = RecordStore(root / 'data' / 'experiments.sqlite3')
-        self.device = SimulatedDevice()
+        self.readings = RealReadings()
         self.state = {
-            'devices': self.device.outputs.copy(), 'initialized': False, 'running': False,
+            'devices': dict.fromkeys(('motor1', 'motor2', 'lift'), False), 'initialized': False, 'running': False,
             'stopped': False, 'zero': False, 'pressure': self.config.value['defaultPressure'],
             'tick': 0, 'values': {}, 'database': self.config.value['defaultLibrary'],
             'runId': None, 'sampleCount': 0,
@@ -52,17 +53,45 @@ class Controller:
         self.last_array_sequence = -1
         self.next_array_publish = 0.0
         self.refresh()
-        self.log('Python 控制端已启动 · 模拟设备待机，不自动启动执行机构')
+        self.log('Python 控制端已启动 · 真实硬件待连接，不会自动启动执行机构')
         if self.config.error:
             self.log(self.config.error)
+        self.auto_connect_configured()
+
+    def auto_connect_configured(self):
+        """Open only explicitly configured, fully validated read/monitor sessions."""
+        if self.hardware.error:
+            self.log(self.hardware.error + '；本次不自动连接硬件')
+            return
+        for section in ('tension', 'displacement'):
+            try:
+                errors = validate_hardware(self.hardware.value, complete=True, section=section)
+                if errors:
+                    self.log(f'{section} 自动连接跳过：配置未完整（{ "；".join(errors) }）')
+                    continue
+                config = self.hardware.value[section]
+                session = self.sensors.connect(section, config)
+                self.sensor_sequences[section] = 0
+                self.records.begin_sensor(session.snapshot(), config)
+                session.thread.start()
+                self.log(f'{section} 已按保存配置发起真实只读连接；连接不会触发运动')
+            except Exception as exc:
+                self.log(f'{section} 自动连接失败：{exc}')
+        try:
+            errors = validate_hardware(self.hardware.value, complete=True, section='motors')
+            if errors:
+                self.log(f'电机自动连接跳过：配置未完整（{ "；".join(errors) }）')
+            else:
+                session = self.motion.connect('motors', self.hardware.value['motors'], control=True)
+                self.log(f"电机真实只读监测连接已发起，会话 {session.status['sessionId']}；不会自动启动或使能")
+        except Exception as exc:
+            self.log(f'电机自动连接失败：{exc}')
 
     def refresh(self):
         self.array.configure(paused=self.state['stopped'])
         self.state['array'] = self.array.status()
-        self.state['devices'] = self.device.outputs.copy()
-        self.state['values'] = (dict.fromkeys(('normal', 'area', 'friction', 'speed', 'coefficient', 'pressure'), 0)
-                                if self.state['stopped'] else self.device.read(
-                                    self.state['tick'], self.state['zero'], self.state['running'], self.state['pressure']))
+        self.state['devices'] = dict.fromkeys(('motor1', 'motor2', 'lift'), False)
+        self.state['values'] = self.readings.snapshot()['values']
 
     def snapshot(self):
         return {'state': copy.deepcopy(self.state), 'config': copy.deepcopy(self.config.value),
@@ -80,7 +109,7 @@ class Controller:
         self.emit('log', entry)
 
     def idle(self):
-        require(not self.state['running'] and not any(self.device.outputs.values()), '请先停止试验和全部执行机构')
+        require(not self.state['running'] and not any(self.state['devices'].values()), '请先停止试验和全部执行机构')
 
     def unlocked(self):
         require(not self.state['stopped'], '设备已急停，请先确认安全并解除急停')
@@ -95,7 +124,7 @@ class Controller:
         self.motion.stop(emergency=emergency, close=True)
         self.verification.cancel()
         self.sensors.disconnect()
-        self.device.stop()
+        self.state['devices'] = dict.fromkeys(('motor1', 'motor2', 'lift'), False)
         if self.state['running']:
             self.records.finish(self.state['runId'], now(), 'emergency' if emergency else 'stopped')
         self.state['running'] = False
@@ -136,20 +165,21 @@ class Controller:
         expected = {'toggle': {'type', 'device'}, 'pressure': {'type', 'value'}, 'database': {'type', 'value'}}
         require(set(command) == expected.get(kind, {'type'}), '控制命令参数错误')
         if kind not in ('emergency', 'stop'):
+            require(kind == 'reset', '该控制操作尚无真实硬件实现')
             require(not self.motion.active(), '真实执行机构诊断期间不能操作模拟设备，请先停止并断开诊断')
             require(not self.verification.active(), '只读验证期间不能操作设备，请等待或取消验证')
             require(not self.sensors.active(), '真实传感器采集期间不能操作模拟设备，请先断开传感器')
         if kind == 'emergency':
-            self.stop('紧急停止：模拟设备停止；已连接真实诊断设备排队发送停止，机械结果待现场确认', emergency=True)
-            return {'message': '模拟设备已急停；真实设备停止仅为尽力请求，请现场确认'}
+            self.stop('紧急停止：已请求停止并断开可用的真实执行机构会话；机械结果待现场确认', emergency=True)
+            return {'message': '已请求真实设备停止；请现场确认机械状态'}
         if kind == 'stop':
-            self.stop('停止设备：全部模拟执行机构停止')
-            return {'message': '模拟设备已停止；真实诊断设备已请求停止并断开，机械结果未确认'}
+            self.stop('停止设备：请求停止并断开已连接的真实执行机构会话')
+            return {'message': '已请求真实设备停止；机械结果未确认'}
         if kind == 'reset':
             require(self.state['stopped'], '当前未处于急停状态')
             self.state['stopped'] = False
             self.state['zero'] = True
-            message = '模拟急停已解除，软件恢复待机；不会清除真实驱动器故障，请现场确认安全'
+            message = '软件急停已解除；不会清除真实驱动器故障，请现场确认安全'
         elif kind == 'database':
             self.idle()
             require(command['value'] in LIBRARIES, '无效的记录库')
@@ -165,25 +195,15 @@ class Controller:
                     self.records.finish(self.state['runId'], now(), 'completed')
                     message = f"试验已结束，共记录 {self.state['sampleCount']} 组数据"
                 else:
-                    require(self.device.outputs['motor1'] and self.device.outputs['motor2'], '请先启动 1 号与 2 号电机')
-                    run_id = f"{self.config.value['recordPrefix']}-{datetime.now():%Y%m%d-%H%M%S}-{uuid.uuid4().hex[:8]}"
-                    self.records.begin(run_id, self.state['database'], now(), self.config.value)
-                    self.state.update(running=True, zero=False, runId=run_id, sampleCount=0)
-                    message = '联动试验已开始'
+                    raise ValueError('真实传感器及联动试验采集尚未接入，不能创建占位记录')
             else:
                 require(not self.state['running'], '联动试验中不能执行该操作')
                 if kind == 'toggle':
                     name = command['device']
-                    require(isinstance(name, str) and name in DEVICE_NAMES, '无效的执行机构')
-                    enabled = not self.device.outputs[name]
-                    self.device.set_output(name, enabled)
-                    message = DEVICE_NAMES[name] + ('启动' if enabled else '停止')
+                    raise ValueError('该执行机构尚无真实控制驱动，不接受模拟启停命令')
                 elif kind == 'pressure':
                     pressure = command['value']
-                    require(type(pressure) in (int, float) and math.isfinite(pressure) and 0 <= pressure <= 0.6, '模拟气压必须在 0～0.6 MPa 范围内')
-                    self.state['pressure'] = pressure
-                    self.publish()
-                    return {'message': ''}
+                    raise ValueError('气压设定尚未接入真实硬件')
                 elif kind == 'commitPressure':
                     message = f"夹爪气压已设定为 {self.state['pressure']:.2f} MPa"
                 elif kind in ('initialize', 'home', 'zero'):
@@ -191,14 +211,11 @@ class Controller:
                         self.idle()
                     if kind == 'initialize':
                         self.array.clear_correction()
-                        self.device.stop()
-                        self.state.update(initialized=True, zero=False, pressure=self.config.value['defaultPressure'])
-                        message = '初始化完成 · 使用已保存的默认气压，历史记录不会删除'
+                        raise ValueError('真实硬件初始化流程尚未实现')
                     elif kind == 'zero':
-                        self.state['zero'] = True
-                        message = '传感器已置零'
+                        raise ValueError('传感器尚未提供有效真实读数，不能置零')
                     else:
-                        message = '运动轴已回到原点（模拟）'
+                        raise ValueError('真实回零驱动尚未实现')
                 else:
                     raise ValueError('不支持的控制命令')
         self.log(message)
@@ -225,6 +242,45 @@ class Controller:
             result = preview_motion(self.safety, self.hardware.value, self.safety_assessment(), params)
             self.log('运动离线规划（不执行）：' + json.dumps(result, ensure_ascii=False, sort_keys=True))
             return result
+        if method == 'hardware.motor.status':
+            require(not params, '该请求不接受参数')
+            session = self.motion.sessions.get('motors')
+            return session.snapshot() if session and session.status.get('purpose') == 'control' else None
+        if method == 'hardware.motor.connect':
+            require(not params, '电机连接不接受参数，使用已保存配置')
+            self.idle()
+            self.unlocked()
+            require(not self.verification.active() and not self.sensors.active(), '请先结束只读验证及传感器采集')
+            require(not self.hardware.error, self.hardware.error or '')
+            errors = validate_hardware(self.hardware.value, complete=True, section='motors')
+            require(not errors, '；'.join(errors))
+            config = self.hardware.value['motors']
+            self.log('真实电机控制连接请求，保存配置快照：' + json.dumps(config, ensure_ascii=False, sort_keys=True))
+            session = self.motion.connect('motors', config, control=True)
+            self.log(f"真实电机控制会话 {session.status['sessionId']} 已创建；连接不启动、不使能，停止须现场确认")
+            return session.snapshot()
+        if method in ('hardware.motor.start', 'hardware.motor.stop', 'hardware.motor.disconnect'):
+            expected = {'target', 'sessionId', 'configVersion'} if method.endswith('.start') else (
+                {'target', 'emergency'} if method.endswith('.stop') else set())
+            require(set(params) == expected, '电机控制参数错误')
+            session = self.motion.sessions.get('motors')
+            require(session is not None and session.status.get('purpose') == 'control' and session.thread.is_alive(),
+                    '没有活动的真实电机控制连接')
+            if method.endswith('.start'):
+                self.idle()
+                self.unlocked()
+                require(type(params['target']) is str and params['target'] in ('motor1', 'motor2'), '无效的电机目标')
+                require(type(params['sessionId']) is str and type(params['configVersion']) is str, '会话及配置版本必须为字符串')
+                session.start(params['target'], params['sessionId'], params['configVersion'])
+            elif method.endswith('.stop'):
+                require(params['target'] is None or (type(params['target']) is str and params['target'] in ('motor1', 'motor2')),
+                        '无效的电机停止目标')
+                require(type(params['emergency']) is bool, '急停参数必须为布尔值')
+                require(not params['emergency'] or params['target'] is None, '全局软件急停必须覆盖两个电机')
+                session.stop(target=params['target'], emergency=params['emergency'])
+            else:
+                session.stop(close=True)
+            return session.snapshot()
         if method == 'hardware.motion.status':
             require(not params, '该请求不接受参数')
             return self.motion.snapshot()
@@ -337,6 +393,7 @@ class Controller:
             return self.array.status()
         if method == 'pressure.zero.start':
             require(not params, '该请求不接受参数')
+            require(not self.motion.active(), '真实执行机构会话期间不能修改阵列零点')
             self.unlocked()
             self.idle()
             self.array.start_correction()
@@ -356,7 +413,8 @@ class Controller:
             return self.array.status()
         if method == 'hardware.get':
             return {'config': copy.deepcopy(self.hardware.value), 'error': self.hardware.error,
-                    'drivers': {'available': False, 'message': '当前试验仍使用模拟设备；支持只读采集和执行机构状态/停止诊断，禁止真实启动、使能、回零及 USB 采集。'}}
+                    'warnings': list(self.hardware.warnings),
+                    'drivers': {'available': False, 'message': '整机试验仍为模拟；支持独立只读采集、执行机构诊断及固定参数电机启停（待实物验收），不支持真实回零、升降动作或整机联动。'}}
         if method == 'hardware.save':
             self.idle()
             require(not self.motion.active(), '执行机构诊断期间不能修改配置，请先停止并断开')
@@ -421,6 +479,28 @@ class Controller:
             if events:
                 self.records.append_sensor(session_id, events)
                 self.sensor_sequences[section] = events[-1]['number']
+                if section == 'tension':
+                    for event in reversed(events):
+                        if event.get('kind') == 'sample' and event.get('quality') == 'valid' and event.get('unit') == 'N':
+                            self.readings.update('normal', event['value'], source='hardware:tension', unit='N')
+                            break
+                elif section == 'displacement':
+                    for event in events:
+                        if event.get('kind') != 'sample' or event.get('quality') != 'valid' or event.get('unit') != 'mm':
+                            continue
+                        point = (event['receivedAt'], event['absoluteValue'])
+                        if self.displacement_previous:
+                            previous_time, previous_value = self.displacement_previous
+                            elapsed = point[0] - previous_time
+                            if elapsed > 0:
+                                self.readings.update('speed', (point[1] - previous_value) / elapsed,
+                                                     source='derived:hardware:displacement', unit='mm/s')
+                        self.displacement_previous = point
+            if status['state'] != 'collecting' or status['quality'] != 'valid':
+                self.readings.invalidate_source(f'hardware:{section}')
+                if section == 'displacement':
+                    self.readings.invalidate_source('derived:hardware:displacement')
+                    self.displacement_previous = None
             if status['state'] in ('failed', 'disconnected') and self.sensor_finished.get(section) != session_id:
                 end = dict(number=self.sensor_sequences.get(section, 0) + 1, kind='end', source='hardware',
                            section=section, sessionId=session_id, quality=status['quality'],

@@ -144,7 +144,7 @@ test('hardware draft persistence, bindings, module selection and unsaved navigat
     await page.getByRole('button', { name: '检查电子皮肤配置', exact: true }).click()
     await expect(page.getByRole('status').filter({ hasText: '配置检查通过' })).toBeVisible()
     await expect(page.getByRole('button', { name: '连接验证', exact: true })).toBeDisabled()
-    await expect(page.getByText(/当前试验仍使用模拟设备/).first()).toBeVisible()
+    await expect(page.getByText(/整机试验仍为模拟/).first()).toBeVisible()
     await page.getByLabel('连接方式').selectOption('serial')
     await page.getByLabel('串口', { exact: true }).nth(0).fill('COM3')
     await page.getByLabel('串口', { exact: true }).nth(1).fill('com3')

@@ -79,8 +79,8 @@ export function Settings({ display, onBack, controller, appearance, exporting, o
           aria-current={section === item.id ? 'page' : undefined} onClick={() => { if (item.id !== section) leaveHardware(() => setSection(item.id)) }}><SettingsNavIcon section={item.id} /><span>{item.label}</span><svg className="settings-nav-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg></button>)}
         </div>
         <div className="settings-nav-note">
-          <span className="settings-mode"><i />模拟环境</span>
-          <span>诊断连接状态见设备连接</span>
+          <span className="settings-mode"><i />纯真实硬件接入</span>
+          <span>无有效反馈时实时值显示为 0</span>
         </div>
       </nav>
       <div className="settings-content">

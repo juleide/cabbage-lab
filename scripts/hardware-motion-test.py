@@ -345,8 +345,150 @@ class MotionTests(unittest.TestCase):
             session = manager.connect('motors', config()['motors'])
             self.wait(lambda: len([data for data in port.writes if data[1] == 6]) == 2)
             self.assertTrue(session.snapshot()['faultLatched'])
-            self.wait(lambda: len([data for data in port.writes if data[1] == 3]) >= 4)
+            self.wait(lambda: not manager.active())
+            self.assertEqual(session.snapshot()['state'], 'failed')
+            self.assertEqual(session.snapshot()['diagnosticGuard']['state'], 'tripped')
+            self.assertEqual(len([data for data in port.writes if data[1] == 3]), 1)
             self.assertEqual(len([data for data in port.writes if data[1] == 6]), 2)
+        finally:
+            manager.close()
+
+    def test_guard_waits_for_first_feedback_without_claiming_online_or_stopped(self):
+        session = MotionSession('lift', config()['lift'], lambda settings: None)
+        session.status['state'] = 'monitoring'
+        for _ in range(3):
+            session.guard_check()
+        guard = session.snapshot()['diagnosticGuard']
+        self.assertEqual(guard['state'], 'waiting')
+        self.assertFalse(guard['physicalStopConfirmed'])
+        self.assertFalse(session.pending)
+        session.update_reading('lift', dict(kind='position', positionMm=123, unitVerified=False))
+        session.guard_check()
+        self.assertEqual(session.snapshot()['diagnosticGuard']['state'], 'observing')
+
+    def test_guard_latches_stale_position_once_and_fresh_feedback_cannot_reset(self):
+        session = MotionSession('motors', config()['motors'], lambda settings: None)
+        session.status['state'] = 'monitoring'
+        session.update_reading('motor1', dict(raw=0))
+        session.update_position('motor1', [0, 1])
+        session.position_received['motor1'] -= 2
+        session.guard_check()
+        first = session.snapshot()
+        self.assertIn('原始位置', first['diagnosticGuard']['reason'])
+        self.assertTrue(first['faultLatched'])
+        self.assertEqual(first['state'], 'disconnecting')
+        ids = {key: command['id'] for key, command in session.pending.items()}
+        session.update_position('motor1', [0, 2])
+        session.guard_check()
+        session.trip('后续原因不得覆盖首次触发')
+        self.assertEqual(session.snapshot()['diagnosticGuard'], first['diagnosticGuard'])
+        self.assertEqual({key: command['id'] for key, command in session.pending.items()}, ids)
+        self.assertTrue(all(command['emergency'] for command in session.pending.values()))
+
+    def test_background_guard_interrupts_long_transaction_without_status_polling(self):
+        port = Port()
+        entered = threading.Event()
+        write = port.write
+        def stall_second_station(data):
+            count = write(data)
+            if data[0] == 2 and data[1] == 3:
+                port.buffer.clear()
+                entered.set()
+            return count
+        port.write = stall_second_station
+        manager = MotionManager(lambda settings: port)
+        settings = config()['motors']
+        settings['serial']['timeoutMs'] = 60000
+        try:
+            session = manager.connect('motors', settings)
+            self.assertTrue(entered.wait(1))
+            with session.lock:
+                session.last_received['motor1'] -= 2
+            # No snapshot(), RPC, controller tick or UI poll drives the watchdog.
+            self.wait(lambda: port.closed)
+            self.wait(lambda: not manager.active())
+            status = session.snapshot()
+            self.assertEqual(status['diagnosticGuard']['state'], 'tripped')
+            self.assertIn('新鲜度', status['diagnosticGuard']['reason'])
+            self.assertEqual(status['state'], 'failed')
+            self.assertEqual([data for data in port.writes if data[1] == 6],
+                             [motor_stop_request(1, emergency=True), motor_stop_request(2, emergency=True)])
+            self.assertFalse(session.guard_thread.is_alive())
+        finally:
+            manager.close()
+
+    def test_running_or_limits_trip_before_position_read(self):
+        for word in (4, 32, 64):
+            with self.subTest(word=word):
+                port = Port()
+                write = port.write
+                def feedback(data):
+                    count = write(data)
+                    if data[1] == 3:
+                        port.buffer[:] = frame(bytes([data[0], 3, 2]) + struct.pack('>H', word))
+                    return count
+                port.write = feedback
+                manager = MotionManager(lambda settings: port)
+                try:
+                    session = manager.connect('motors', config()['motors'])
+                    self.wait(lambda: not manager.active())
+                    self.assertEqual(session.snapshot()['state'], 'failed')
+                    self.assertEqual([data for data in port.writes if data[1] == 3], [port.writes[0]])
+                    self.assertEqual(len([data for data in port.writes if data[1] == 6]), 2)
+                finally:
+                    manager.close()
+
+    def test_lift_stale_feedback_requests_stop_once_without_query(self):
+        port = Port()
+        port.buffer.extend(bytes.fromhex('AA07013031322E33FF'))
+        manager = MotionManager(lambda settings: port)
+        try:
+            session = manager.connect('lift', config()['lift'])
+            self.wait(lambda: bool(session.last_received))
+            with session.lock:
+                session.last_received['lift'] -= 2
+            self.wait(lambda: port.closed)
+            self.wait(lambda: not manager.active())
+            status = session.snapshot()
+            self.assertEqual(status['diagnosticGuard']['state'], 'tripped')
+            self.assertEqual(port.writes, [bytes.fromhex('AA030400FF')])
+            self.assertFalse(status['diagnosticGuard']['physicalStopConfirmed'])
+            self.assertEqual(status['readings']['lift']['quality'], 'stale')
+        finally:
+            manager.close()
+
+    def test_lift_error_zero_trips_and_never_sends_clear_error(self):
+        port = Port()
+        port.buffer.extend(bytes.fromhex('AA030900FF'))
+        manager = MotionManager(lambda settings: port)
+        try:
+            session = manager.connect('lift', config()['lift'])
+            self.wait(lambda: not manager.active())
+            status = session.snapshot()
+            self.assertEqual(status['state'], 'failed')
+            self.assertIn('code=0', status['diagnosticGuard']['reason'])
+            self.assertEqual(port.writes, [bytes.fromhex('AA030400FF')])
+        finally:
+            manager.close()
+
+    def test_interlock_never_reconnects_automatically_and_manual_connect_is_new_session(self):
+        ports = [Port(fault=True), Port()]
+        calls = []
+        def factory(settings):
+            calls.append(settings)
+            return ports[len(calls) - 1]
+        manager = MotionManager(factory)
+        try:
+            first = manager.connect('motors', config()['motors'])
+            self.wait(lambda: not manager.active())
+            self.assertEqual(len(calls), 1)
+            self.assertEqual(first.snapshot()['diagnosticGuard']['state'], 'tripped')
+            second = manager.connect('motors', config()['motors'])
+            self.wait(lambda: bool(second.last_received))
+            self.assertNotEqual(first.status['sessionId'], second.status['sessionId'])
+            self.assertFalse(second.snapshot()['motionAllowed'])
+            self.assertEqual(first.snapshot()['diagnosticGuard']['state'], 'tripped')
+            self.assertTrue(all(packet[1] == 3 for packet in ports[1].writes))
         finally:
             manager.close()
 

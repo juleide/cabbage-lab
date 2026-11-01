@@ -7,15 +7,23 @@ export interface SerialSettings {
   timeoutMs: number
   intervalMs: number
 }
+export interface MotorOperation {
+  direction: -1 | 1 | null
+  speedRpm: number | null
+  maxSpeedRpm: number | null
+  accelerationMs: number | null
+  decelerationMs: number | null
+  maxRunMs: number | null
+}
 export interface HardwareConfig {
-  schemaVersion: 1
-  motors: { serial: SerialSettings; motor1: number | null; motor2: number | null }
+  schemaVersion: 2
+  motors: { serial: SerialSettings; motor1: number | null; motor2: number | null; operation: Record<'motor1' | 'motor2', MotorOperation> }
   lift: { serial: SerialSettings; interface: 'RS232' | 'RS485' }
   array: { mode: 'usb' | 'serial'; press: { rev: number; serial: SerialSettings }; grip: { rev: number; serial: SerialSettings } }
   tension: { serial: SerialSettings; station: number | null; unit: string; decimals: number }
   displacement: { serial: SerialSettings; station: number | null; model: '' | 'p' | 'g'; channel: number; reading: 'raw' | 'float'; rawMin: number | null; rawMax: number | null; lower: number | null; upper: number | null; unit: string }
 }
-export interface HardwareSnapshot { config: HardwareConfig; error: string | null; drivers: { available: false; message: string } }
+export interface HardwareSnapshot { config: HardwareConfig; error: string | null; warnings?: string[]; drivers: { available: false; message: string } }
 export interface HardwareCheck { errors: string[] }
 export interface SerialPortInfo {
   port: string
@@ -94,6 +102,13 @@ export interface MotionStatus {
   faultLatched: boolean
   motionAllowed: false
   auditDropped: number
+  diagnosticGuard?: {
+    state: 'waiting' | 'observing' | 'tripped' | 'closed'
+    reason: string | null
+    trippedAt: number | null
+    intervalMs: number
+    physicalStopConfirmed: false
+  }
   configVersion: string
   error: string | null
   readings: Record<string, {
@@ -128,6 +143,26 @@ export interface MotionStatus {
   }>
 }
 export type MotionStatuses = Partial<Record<MotionSection, MotionStatus>>
+
+export type MotorTarget = 'motor1' | 'motor2'
+export interface MotorAxisStatus {
+  state: 'idle' | 'starting' | 'running' | 'stopping' | 'unknown'
+  commandId: string | null
+  error: string | null
+  driverStopped: boolean
+  physicalStopConfirmed: false
+  canStart: boolean
+  startBlocked: string | null
+}
+export interface MotorControlStatus extends Omit<MotionStatus, 'motionAllowed' | 'section' | 'readings'> {
+  section: 'motors'
+  purpose: 'control'
+  confirmationMs: number
+  axes: Record<MotorTarget, MotorAxisStatus>
+  readings: Partial<Record<MotorTarget, MotionStatus['readings'][string] & {
+    speed?: { rpm: number; raw: number; receivedAt: number; ageMs: number; quality: 'valid' | 'stale' }
+  }>>
+}
 
 function finite(value: number) {
   if (!Number.isFinite(value)) throw new Error('设备数据不是有效数值')

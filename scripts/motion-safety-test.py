@@ -146,9 +146,10 @@ class SafetyTests(unittest.TestCase):
             codes = {reason['code'] for reason in assess(store, hardware(), {'motors': session})['targets']['motor1']['reasons']}
             self.assertIn('POSITION_UNAVAILABLE', codes)
             session['faultLatched'] = True
+            session['diagnosticGuard'] = dict(state='tripped', reason='测试联锁')
             session['readings']['motor1'].update(quality='stale', positiveLimit=True)
             target = assess(store, hardware(), {'motors': session}, stopped=True)['targets']['motor1']
-            self.assertTrue({'FAULT_LATCHED', 'FEEDBACK_UNAVAILABLE', 'DEVICE_NOT_IDLE', 'SOFTWARE_EMERGENCY'} <=
+            self.assertTrue({'FAULT_LATCHED', 'FEEDBACK_UNAVAILABLE', 'DEVICE_NOT_IDLE', 'SOFTWARE_EMERGENCY', 'DIAGNOSTIC_INTERLOCK'} <=
                             {reason['code'] for reason in target['reasons']})
 
     def test_preview_motor_endpoint_words_and_reverse_calibration(self):

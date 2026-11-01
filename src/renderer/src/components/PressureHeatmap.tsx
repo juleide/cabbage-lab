@@ -71,7 +71,7 @@ export const PressureHeatmap = memo(function PressureHeatmap({ latest, view, ran
   return (
     <>
       <canvas ref={canvas} className={message ? 'heatmap-inactive' : ''} width={640} height={640}
-        role="img" aria-label="64乘64模拟阵列，点击查看点位值" onPointerDown={event => {
+        role="img" aria-label="64乘64真实阵列等待区，点击查看点位值" onPointerDown={event => {
           const bounds = event.currentTarget.getBoundingClientRect()
           if (!bounds.width || !bounds.height) return
           const column = Math.floor((event.clientX - bounds.left) / bounds.width * 64)
