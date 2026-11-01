@@ -25,6 +25,7 @@ export class ControllerProcess extends EventEmitter {
   constructor(readonly root: string) { super() }
   get online() { return !!this.session }
   get python() {
+    if (app.isPackaged) return join(process.resourcesPath, 'controller', process.platform === 'win32' ? 'lab-controller.exe' : 'lab-controller')
     return process.env.LAB_PYTHON || (process.platform === 'win32' ? 'python' : 'python3')
   }
 
@@ -33,15 +34,27 @@ export class ControllerProcess extends EventEmitter {
     if (this.child) return Promise.reject(new Error('旧控制进程尚未退出'))
     this.stopping = false
     const startup = new Promise<void>((resolveStart, rejectStart) => {
-      const source = app.isPackaged
-        ? join(process.resourcesPath, 'backend', 'src')
-        : join(app.getAppPath(), 'backend', 'src')
+      const packaged = app.isPackaged
+      const command = this.python
+      if (packaged && !existsSync(command)) {
+        const error = new Error('内置控制端缺失，请重新安装完整软件包')
+        this.emit('event', { event: 'offline', data: { message: error.message } } satisfies ControllerEvent)
+        rejectStart(error)
+        return
+      }
       const environment = { ...process.env }
       delete environment.LAB_DEVICE_DEBUG_USERNAME
       delete environment.LAB_DEVICE_DEBUG_PASSWORD
-      const child = spawn(this.python, ['-m', 'lab_controller', '--data-dir', this.root], {
+      if (packaged) {
+        delete environment.LAB_PYTHON
+        delete environment.PYTHONPATH
+        delete environment.PYTHONHOME
+      } else {
+        environment.PYTHONPATH = [join(app.getAppPath(), 'backend', 'src'), process.env.PYTHONPATH].filter(Boolean).join(delimiter)
+      }
+      const child = spawn(command, [...(packaged ? [] : ['-m', 'lab_controller']), '--data-dir', this.root], {
         stdio: 'pipe', windowsHide: true,
-        env: { ...environment, PYTHONUTF8: '1', PYTHONUNBUFFERED: '1', PYTHONPATH: [source, process.env.PYTHONPATH].filter(Boolean).join(delimiter) }
+        env: { ...environment, PYTHONUTF8: '1', PYTHONUNBUFFERED: '1' }
       })
       this.child = child
       let failed = false
@@ -60,10 +73,10 @@ export class ControllerProcess extends EventEmitter {
         this.emit('event', { event: 'offline', data: { message: error.message } } satisfies ControllerEvent)
       }
       const startupTimer = setTimeout(() => {
-        fail(new Error('Python 控制端启动超时，请检查 Python 3.10+ 和日志'))
+        fail(new Error(packaged ? '内置控制端握手超时，请检查日志或重新安装软件' : 'Python 控制端启动超时，请检查 Python 3.10+ 和日志'))
         child.kill()
       }, 10_000)
-      child.on('error', error => { fail(error); if (this.child === child) this.child = undefined })
+      child.on('error', error => { fail(packaged ? new Error(`内置控制端无法启动：${error.message}，请检查安装文件和系统安全软件`) : error); if (this.child === child) this.child = undefined })
       child.on('exit', (code, signal) => {
         if (this.child === child) this.child = undefined
         fail(new Error(this.stopping ? '控制进程已停止' : `控制进程退出（${code ?? signal}），设备状态未知`))

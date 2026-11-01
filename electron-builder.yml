@@ -1,6 +1,8 @@
 appId: com.labcontrol.desktop
 productName: Cabbage Lab
 asar: true
+beforePack: ./scripts/controller-before-pack.cjs
+afterPack: ./scripts/controller-after-pack.cjs
 directories:
   buildResources: resources/icons
   output: dist/installers
@@ -15,9 +17,8 @@ extraResources:
   - from: resources/icons
     to: icons
     filter: ['app.png', 'app.ico']
-  - from: backend/src
-    to: backend/src
-    filter: ['**/*.py']
+  - from: dist/controller/lab-controller
+    to: controller
 mac:
   icon: resources/icons/app.icns
   target: [dmg]

@@ -385,41 +385,175 @@ out/
 pnpm preview
 ```
 
-### 生成安装包
+### 构建环境准备
 
-在目标操作系统上执行：
+最终用户安装 **Windows x64 NSIS `.exe` 安装程序**后，无需安装 Python、pyserial 或配置 `LAB_PYTHON`。主程序自动启动内置控制端，不弹出额外控制台窗口；首页、设备连接及自动连接行为不变。USB 转串口驱动、接线、端口和设备地址仍需与现场硬件匹配，不新增驱动安装或未实现的硬件功能。
+
+构建者需要 Node.js 22.12+、pnpm 和 **Python 3.10+**。推荐使用 Python 3.12 的项目虚拟环境；Windows x64 必须使用 Windows x64、x64 Node.js 和 x64 Python 原生构建。Mac 只能构建和验证本机架构版本，不能生成 Windows 内置控制端。
+
+Windows x64 请按下方“Windows x64 完整打包步骤”操作。
 
 ```sh
+# macOS / Linux：仅构建本机平台和架构
+python3 -m venv .venv
+.venv/bin/python -m pip install -r backend/requirements-build.txt
+pnpm install --frozen-lockfile
 pnpm package
 ```
 
-`pnpm package` 会先执行类型检查和应用构建，再调用 electron-builder。当前配置的目标为：
+运行依赖位于 `backend/requirements.txt`，构建依赖位于 `backend/requirements-build.txt`（固定 PyInstaller 6.16.0）。构建脚本按 `LAB_PYTHON` → 项目 `.venv` → `backend/.venv` → 系统 Python 的优先级选择解释器。显式指定 `LAB_PYTHON` 时必须指向有效的 Python 3.10+ 可执行文件；选中解释器缺少依赖或架构不符会停止并提示，不自动安装或修改全局环境。
 
-| 平台 | 打包目标 |
+首次构建还需按现有配置流程从 `.env.example` 复制生成本地 `.env`（已有文件不要覆盖），未设置调试凭据则保持为空。不要放入开发机硬件配置。
+
+### Windows x64 完整打包步骤
+
+以下命令均在 **Windows x64 的 PowerShell** 中执行。必须使用 x64 Node.js 和 x64 Python 原生构建；不能用 Mac 生成的控制端替代 Windows 控制端。
+
+#### 1. 安装并检查构建工具
+
+| 工具 | 要求 |
 | --- | --- |
-| Windows | NSIS 安装程序 |
-| macOS | DMG |
-| Linux | AppImage |
+| Node.js | x64，22.12+，推荐 24 LTS |
+| pnpm | 11.13.0 |
+| Python | x64，推荐 3.12；安装时包含 Python Launcher，以使用 `py` 命令 |
+| Git | 使用 Git 获取项目时需要 |
 
-安装包输出目录为 `dist/installers/`。如需明确指定目标和架构，可先构建，再执行相应命令：
+如尚未安装指定版本的 pnpm：
 
-```sh
-pnpm build
-
-# Windows x64
-pnpm exec electron-builder --win nsis --x64
-
-# macOS Apple Silicon
-pnpm exec electron-builder --mac dmg --arm64
-
-# macOS Intel
-pnpm exec electron-builder --mac dmg --x64
-
-# Linux x64
-pnpm exec electron-builder --linux AppImage --x64
+```powershell
+npm install -g pnpm@11.13.0
 ```
 
-以上命令按各自目标平台使用，建议在目标系统上原生构建。打包配置会包含编译产物及后端资源。正式分发前，还需在目标机器确认启动、数据目录权限、导出和退出行为；签名、公证及自动更新尚未配置。
+确认平台、架构及版本：
+
+```powershell
+node -p "process.platform + '/' + process.arch"
+# 应为 win32/x64
+
+pnpm --version
+# 应为 11.13.0
+
+py -3.12 -c "import sys, struct; print(sys.version); print(struct.calcsize('P') * 8)"
+# Python 应为 3.12，最后一行应为 64
+```
+
+#### 2. 获取项目代码
+
+将包含本次内置控制端改动的完整项目放到 Windows，进入项目根目录，例如：
+
+```powershell
+cd C:\Projects\cabbage-lab
+```
+
+通过 Git 获取时，确保新增文件和修改均已同步。不要直接复制 Mac 的 `node_modules/`、`.venv/`、`out/` 或 `dist/`；Windows 会重新安装依赖并构建自己的控制端。
+
+#### 3. 安装依赖并准备本地配置
+
+```powershell
+pnpm install --frozen-lockfile
+
+py -3.12 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r backend/requirements-build.txt
+```
+
+无需激活虚拟环境，构建脚本会自动优先使用项目 `.venv`，除非显式设置了 `LAB_PYTHON`。检查该覆盖值：
+
+```powershell
+$env:LAB_PYTHON
+```
+
+如它指向无效或不打算使用的解释器，可清除**当前 PowerShell 会话**中的覆盖值：
+
+```powershell
+Remove-Item Env:LAB_PYTHON -ErrorAction SilentlyContinue
+```
+
+首次构建创建本地 `.env`，已有文件不要覆盖：
+
+```powershell
+if (-not (Test-Path .env)) {
+    Copy-Item .env.example .env
+}
+```
+
+没有调试授权凭据时，相关字段保持为空。不要将开发机的 `hardware.json`、用户数据或现场串口配置放入安装资源。如果 pip 无法访问依赖源，先解决网络或依赖源配置问题；不要跳过控制端构建继续生成交付包。
+
+#### 4. 执行完整打包
+
+```powershell
+pnpm package --win --x64
+```
+
+该命令依次执行类型检查和应用构建、Windows 独立控制端构建、中文/空格临时路径下的安全通信检查、配置资源准备及 NSIS 安装包生成，并校验平台、架构和安装资源。通信检查只验证握手、ping 和正常退出，不发送运动指令。
+
+任一步失败都应先修复，不要绕过流水线直接运行 electron-builder。
+
+#### 5. 获取交付安装包
+
+最终安装包位于：
+
+```text
+dist\installers\
+```
+
+交付给用户的是其中的 **Windows x64 NSIS `.exe` 安装程序**，不是 `dist\controller\`、单独的 `lab-controller.exe` 或 `win-unpacked` 解包目录。
+
+安装后的应用资源应包含完整控制端目录：
+
+```text
+resources\
+└── controller\
+    ├── lab-controller.exe
+    ├── _internal\
+    └── build-target.json
+```
+
+`_internal/` 包含 Python 运行库及控制端依赖，不能省略。最终用户无需安装 Python、pyserial 或设置 `LAB_PYTHON`；USB 转串口驱动、接线、端口及设备地址仍须与现场硬件匹配。
+
+#### 6. 在干净 Windows x64 电脑上验收
+
+至少在一台**未安装 Python、未安装 pyserial、未配置 `LAB_PYTHON`** 的 Windows x64 电脑上安装，并逐项记录：
+
+- [ ] 打开软件后内置后台启动、握手及心跳正常，无额外控制台窗口。
+- [ ] 安装路径和用户数据路径包含中文或空格时能够正常启动。
+- [ ] 实际安装资源中包含 `lab-controller.exe`、完整 `_internal/` 及构建标记。
+- [ ] 端口扫描、配置保存、退出后重启恢复正常，未带入开发机硬件配置。
+- [ ] 退出后后台进程结束、串口释放，再次启动能够连接。
+- [ ] 自动连接、无有效读数显示 0、设备未就绪时限制操作均保持原样。
+- [ ] 在具备真实硬件及安全条件时验证真实读数、电机启动与停止。
+
+未执行项目标为待验收；macOS 本机通信检查或构建通过不能替代 Windows 安装及真实硬件验收。完成这些验收前，不标记为正式交付就绪。详细验收记录维护在 [内置控制端验证记录](docs/016.内置控制端构建与验证记录.md)。
+
+### 生成安装包
+
+`pnpm package` 依次执行：
+
+1. TypeScript 检查和应用构建。
+2. 清理专用控制端产物目录，以 PyInstaller **onedir / console** 模式构建完整控制端（保留 stdin/stdout JSONL）。
+3. 将整个控制端复制到带中文和空格的临时路径，以全新临时数据目录验证 `ready`、`system.ping`、`system.shutdown` 和正常退出；不发送运动指令，结束后清理进程与临时目录。
+4. 准备原有配置资源，再调用 electron-builder；打包前校验控制端平台、架构及文件，打包后检查安装资源内的可执行文件和运行库目录。任一步失败即终止，不允许跨平台/跨架构混装。
+
+不要绕过以上流水线，直接用 `pnpm exec electron-builder` 生成交付安装包。各阶段可单独诊断：
+
+```sh
+pnpm controller:build
+pnpm controller:check
+```
+
+产物位置：
+
+| 路径 | 内容 |
+| --- | --- |
+| `out/` | Electron 应用编译产物 |
+| `dist/controller/lab-controller/` | 完整独立控制端目录，不能仅分发其中的可执行文件 |
+| `dist/controller-build/` | PyInstaller 工作、spec 和缓存文件 |
+| `dist/installers/` | 安装包和 electron-builder 解包产物 |
+
+安装资源内为 `resources/controller/lab-controller.exe`（Windows）或 `resources/controller/lab-controller`（本机其他平台），旁边是 `_internal/` 运行依赖。安装后不依赖系统 Python，不使用 `LAB_PYTHON` 或开发源码 `PYTHONPATH`；内置程序缺失、启动失败或握手超时会明确报错，不回退系统 Python。开发运行仍使用原有 Python 模块方式。
+
+`hardware.json` 结构、用户数据目录及首次运行初始化不变；安装资源不包含开发电脑的硬件配置和数据。已有 `export.env`、调试授权配置准备流程与图标资源保持不变。构建产物及虚拟环境不提交 Git。
+
+当前平台目标仍为 Windows NSIS、macOS DMG 和 Linux AppImage；优先交付 Windows x64。不新增签名、公证、自动更新。**本机验证不等于 Windows 安装或真实硬件验收通过**，最终验收及待办见 [内置控制端验证记录](docs/016.内置控制端构建与验证记录.md)。完成目标 Windows 无 Python 环境及现场硬件验收前，不标记正式交付就绪。
 
 ## 应用图标
 
