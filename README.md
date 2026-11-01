@@ -524,6 +524,34 @@ resources\
 
 未执行项目标为待验收；macOS 本机通信检查或构建通过不能替代 Windows 安装及真实硬件验收。完成这些验收前，不标记为正式交付就绪。详细验收记录维护在 [内置控制端验证记录](docs/016.内置控制端构建与验证记录.md)。
 
+### Windows 通信检查阶段出现 `3221225477` 时
+
+`3221225477`（十六进制 `0xC0000005`）是 Windows 访问冲突状态。如果日志已显示 PyInstaller `Build complete!`，随后在 `controller:check` 退出，说明构建已完成，失败发生在检查阶段；不能据此认定缺少 Python、PyInstaller 打包失败或硬件协议错误。
+
+本次 Windows 现场已确认：Node.js 22.23.3 x64，在中文/空格临时路径下创建目录成功，随后 `fs.cpSync` 复制控制端目录时以 `0xC0000005` 崩溃，尚未启动控制端。这定位了崩溃调用，但不证明底层一定是 Node、文件系统或其他系统组件中的哪一个问题。
+
+检查脚本现已通过 `scripts/copy-controller.mjs` 改为递归遍历、逐文件普通读取/写入，避免 `cpSync` / `copyFileSync` 的原生快速复制路径；保留完整资源、空目录、Unix 可执行权限及相对符号链接。同步修改后，已有成功构建的控制端可直接执行 `node scripts/check-controller.mjs` 复测，无需重新运行 PyInstaller。此规避方案仍待 Windows 实机确认；通过后再运行完整打包。
+
+先在项目根目录的 PowerShell 中确认实际运行时，再单独运行检查，避免反复重建：
+
+```powershell
+(Get-Command node).Source
+node -p "JSON.stringify({execPath:process.execPath,node:process.versions.node,bun:process.versions.bun,platform:process.platform,arch:process.arch})"
+pnpm exec node -p "JSON.stringify({execPath:process.execPath,node:process.versions.node,bun:process.versions.bun,platform:process.platform,arch:process.arch})"
+node scripts/check-controller.mjs
+$LASTEXITCODE
+```
+
+使用官方 Node.js x64，推荐 24 LTS；`node` 命令不应由 Bun 替代。`pnpm exec node` 与直接调用 `node` 的输出可用于检查脚本环境是否改变了解释器路径。日志格式本身不能证明使用了哪种运行时。
+
+新版检查脚本会同步输出运行时、创建临时目录、复制完成、启动、子进程 PID、握手、ping、退出和清理等阶段：
+
+- 若检查脚本直接以访问冲突退出且没有 JavaScript 错误栈，保留最后一条阶段日志，用来缩小运行时或原生调用的故障范围。
+- 若独立控制端退出，脚本会报告子进程十进制及十六进制退出码、signal 和 stderr，以区别于检查脚本自身崩溃。
+- 仅缺少下一阶段日志不能单独证明根因。请保留完整输出、Node 版本/路径，以及必要时 Windows 事件查看器中的故障应用和故障模块记录，继续定位。
+
+本机 macOS 的检查通过不能证明该 Windows 原生崩溃已经修复。不要跳过通信检查生成交付安装包，不要为排错直接运行运动指令，也不建议未确认原因就关闭系统安全软件。
+
 ### 生成安装包
 
 `pnpm package` 依次执行：
