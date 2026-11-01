@@ -1,4 +1,4 @@
-"""Offline motion codecs. Not connected to RPC or any serial write path.
+"""Restricted motion codecs, used by the stop-only diagnostic session.
 
 Missing mechanical limits and motion parameter mappings deliberately prevent
 start/home/enable commands. An encoded stop is not proof of a stopped device.

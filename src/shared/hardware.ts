@@ -85,6 +85,41 @@ export interface SensorRun {
 }
 export type HardwareSection = 'motors' | 'lift' | 'array' | 'tension' | 'displacement'
 
+export type MotionSection = 'motors' | 'lift'
+export interface MotionStatus {
+  sessionId: string
+  section: MotionSection
+  source: 'hardware'
+  state: 'connecting' | 'monitoring' | 'disconnecting' | 'disconnected' | 'failed'
+  faultLatched: boolean
+  motionAllowed: false
+  auditDropped: number
+  configVersion: string
+  error: string | null
+  readings: Record<string, {
+    quality: 'valid' | 'stale'
+    receivedAt: number
+    ageMs: number
+    raw?: number
+    running?: boolean
+    fault?: boolean
+    enabled?: boolean
+    positiveLimit?: boolean
+    negativeLimit?: boolean
+    positionMm?: number
+    code?: number
+    kind?: 'position' | 'error'
+  }>
+  commands: Record<string, {
+    id: string
+    emergency: boolean
+    state: 'queued' | 'acknowledged' | 'sent' | 'unknown'
+    motionConfirmed: false
+    error: string | null
+  }>
+}
+export type MotionStatuses = Partial<Record<MotionSection, MotionStatus>>
+
 function finite(value: number) {
   if (!Number.isFinite(value)) throw new Error('设备数据不是有效数值')
   return value

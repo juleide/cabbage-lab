@@ -4,6 +4,7 @@ import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { rendererMethods } from '../shared/controller'
 import type { ControllerEvent, Snapshot } from '../shared/controller'
+import type { MotionStatuses } from '../shared/hardware'
 import { ControllerProcess } from './services/controller'
 import { exportRecords } from './services/export-records'
 import { UIPreferences } from './services/preferences'
@@ -37,6 +38,7 @@ function handler(channel: string, callback: (...args: any[]) => unknown) {
 function lockDeviceDebug() {
   authWasAuthorized = false
   deviceAuth.lock()
+  if (controller?.online) void controller.request('system.motion.lock').catch(error => console.error('执行机构锁定停止请求失败', error))
   if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.webContents.isDestroyed()) mainWindow.webContents.send('device-auth:locked')
 }
 
@@ -45,7 +47,7 @@ function registerIPC() {
   handler('device-auth:login', (username: unknown, password: unknown) => {
     const result = deviceAuth.login(mainWindow!.webContents.id, username, password)
     authWasAuthorized = result.authorized
-    if (!result.authorized) mainWindow!.webContents.send('device-auth:locked')
+    if (!result.authorized) lockDeviceDebug()
     return result
   })
   handler('device-auth:lock', () => lockDeviceDebug())
@@ -55,7 +57,7 @@ function registerIPC() {
     if (!params || typeof params !== 'object' || Array.isArray(params) || Buffer.byteLength(JSON.stringify(params)) > 64 * 1024) throw new Error('请求参数无效')
     if (method.startsWith('hardware.')) {
       deviceAuth.require(mainWindow!.webContents.id)
-      if (!['hardware.status', 'hardware.sensors.status', 'hardware.sensors.records.list', 'hardware.sensors.records.read'].includes(method)) {
+      if (!['hardware.motion.status', 'hardware.status', 'hardware.sensors.status', 'hardware.sensors.records.list', 'hardware.sensors.records.read'].includes(method)) {
         deviceAuth.touch(mainWindow!.webContents.id)
       }
     }
@@ -68,6 +70,8 @@ function registerIPC() {
       if (controller.online) {
         const { state } = await controller.request<Snapshot>('state.get')
         if (state.running || Object.values(state.devices).some(Boolean)) throw new Error('请先停止试验和全部执行机构')
+        const motion = await controller.request<MotionStatuses>('hardware.motion.status')
+        if (Object.values(motion).some(status => status && ['connecting', 'monitoring', 'disconnecting'].includes(status.state))) throw new Error('请先停止并断开真实执行机构诊断，现场确认机械安全后再重启')
       }
       await controller.stop()
       await controller.start()
@@ -123,11 +127,10 @@ function createWindow() {
   mainWindow.webContents.on('will-navigate', event => event.preventDefault())
   if (process.env.ELECTRON_RENDERER_URL) void mainWindow.loadURL(process.env.ELECTRON_RENDERER_URL)
   else void mainWindow.loadFile(join(here, '../renderer/index.html'))
-  mainWindow.on('closed', () => { deviceAuth.lock(); clearInterval(authTimer); mainWindow = null })
+  mainWindow.on('closed', () => { lockDeviceDebug(); clearInterval(authTimer); mainWindow = null })
   authTimer = setInterval(() => {
     if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.webContents.isDestroyed() && authWasAuthorized && !deviceAuth.status(mainWindow.webContents.id).authorized) {
-      authWasAuthorized = false
-      mainWindow.webContents.send('device-auth:locked')
+      lockDeviceDebug()
     }
   }, 1000)
   authTimer.unref()

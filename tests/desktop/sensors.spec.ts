@@ -39,6 +39,7 @@ test('continuous sensors show quality, preserve simulation isolation and provide
           return snapshot()
         }
         if (method === 'hardware.sensors.disconnect') { connected = false; return snapshot() }
+        if (method === 'hardware.motion.status') return {}
         if (method === 'hardware.sensors.status') return snapshot()
         if (method === 'hardware.sensors.records.list') return [{ id: 'test-session', section: 'tension', source: 'hardware', startedAt: sample.receivedAt, endedAt: Date.now() / 1000, status: 'completed', configVersion: 'test-version', config: {}, error: null, eventCount: 2 }]
         if (method === 'hardware.sensors.records.read') return [sample, { ...sample, number: 2, kind: 'end', quality: 'unavailable', raw: null, value: null }]

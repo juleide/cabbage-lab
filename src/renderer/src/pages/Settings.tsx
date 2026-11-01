@@ -64,7 +64,7 @@ export function Settings({ display, onBack, controller, appearance, exporting, o
     } catch (reason) { notify((reason as Error).message) }
   }
   function restart() {
-    if (window.confirm('确认重启 Python 控制端？重启后执行机构保持停止，不自动恢复试验。')) void controller.restart()
+    if (window.confirm('确认重启 Python 控制端？请先停止并断开真实诊断设备、现场确认机械安全。重启不会自动恢复试验，也不能保证真实设备已停止。')) void controller.restart()
   }
 
   return (
@@ -80,7 +80,7 @@ export function Settings({ display, onBack, controller, appearance, exporting, o
         </div>
         <div className="settings-nav-note">
           <span className="settings-mode"><i />模拟环境</span>
-          <span>未连接真实硬件</span>
+          <span>诊断连接状态见设备连接</span>
         </div>
       </nav>
       <div className="settings-content">

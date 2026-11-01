@@ -25,7 +25,7 @@ test('serial scan presents ports, preserves drafts and distinguishes empty and f
       let count = 0
       ipcMain.removeHandler('controller:request')
       ipcMain.handle('controller:request', (_event, method) => {
-        if (method === 'hardware.sensors.status') return {}
+        if (method === 'hardware.sensors.status' || method === 'hardware.motion.status') return {}
         if (method === 'hardware.status') return { state: 'idle', sessionId: null, section: null, message: '', readings: null }
         if (method !== 'hardware.ports.list') throw new Error('Unexpected test request')
         count++

@@ -90,7 +90,7 @@ def serve(root):
                     continue
                 method, params = message.get('method'), message.get('params', {})
                 command = params.get('type') if isinstance(params, dict) else None
-                urgent = method in ('system.shutdown', 'system.suspend') or (method == 'device.command' and command in ('emergency', 'stop'))
+                urgent = method in ('system.shutdown', 'system.suspend', 'system.motion.lock', 'hardware.motion.stop', 'hardware.motion.disconnect') or (method == 'device.command' and command in ('emergency', 'stop'))
                 priority = 0 if urgent else 1 if method == 'system.ping' else 2
                 inbox.put_nowait((priority, sequence, message))
                 sequence += 1
@@ -106,6 +106,7 @@ def serve(root):
         threading.Thread(target=read_input, daemon=True, name='ipc-reader').start()
         heartbeat = time.monotonic()
         next_tick = heartbeat
+        motion_stop_sequence = -1
         while not disconnected.is_set() and not outbox.failed.is_set():
             current = time.monotonic()
             if current - heartbeat > 10:
@@ -116,7 +117,7 @@ def serve(root):
                 controller.tick()
                 next_tick = current + controller.config.value['sampleIntervalMs'] / 1000
             try:
-                _, _, message = inbox.get(timeout=min(0.05, max(0, next_tick - time.monotonic())))
+                _, sequence, message = inbox.get(timeout=min(0.05, max(0, next_tick - time.monotonic())))
             except queue.Empty:
                 continue
             request_id = message.get('id')
@@ -128,6 +129,13 @@ def serve(root):
                 outbox.put({'type': 'response', 'id': request_id, 'ok': True, 'result': None})
                 break
             try:
+                # Priority stop/lock must also invalidate older queued connections,
+                # otherwise they could reopen a port after authorization was locked.
+                if method in ('system.motion.lock', 'system.suspend', 'hardware.motion.stop', 'hardware.motion.disconnect') or (
+                        method == 'device.command' and isinstance(params, dict) and params.get('type') in ('stop', 'emergency')):
+                    motion_stop_sequence = max(motion_stop_sequence, sequence)
+                if method == 'hardware.motion.connect' and sequence < motion_stop_sequence:
+                    raise ValueError('该连接请求已被后续停止或权限锁定作废，请确认安全后重新连接')
                 if method == 'system.ping':
                     heartbeat = time.monotonic()
                     result = {'online': True}
