@@ -38,6 +38,51 @@ export interface HardwareVerification {
   readings: Record<string, unknown> | null
   phase?: 'opening' | 'reading' | 'closed'
 }
+export type SensorSection = 'tension' | 'displacement'
+export interface SensorEvent {
+  number: number
+  sessionId: string
+  section: SensorSection
+  source: 'hardware'
+  kind: 'sample' | 'quality' | 'zero' | 'end'
+  quality: 'valid' | 'stale' | 'invalid' | 'unavailable'
+  receivedAt: number
+  raw: number | null
+  value: number | null
+  absoluteValue?: number
+  zeroOffset?: number
+  unit?: string
+  error?: string | null
+}
+export interface SensorStatus {
+  sessionId: string
+  section: SensorSection
+  source: 'hardware'
+  state: 'connecting' | 'collecting' | 'disconnecting' | 'disconnected' | 'failed'
+  quality: SensorEvent['quality']
+  reading: SensorEvent | null
+  lastValid: SensorEvent | null
+  error: string | null
+  configVersion: string
+  zeroOffset: number
+  startedAt: number
+  finishedAt: number | null
+  staleAfterMs: number
+  ageMs?: number
+}
+export type SensorStatuses = Partial<Record<SensorSection, SensorStatus>>
+export interface SensorRun {
+  id: string
+  section: SensorSection
+  source: 'hardware'
+  startedAt: number
+  endedAt: number | null
+  status: 'running' | 'completed' | 'failed' | 'interrupted'
+  configVersion: string
+  config: HardwareConfig[SensorSection]
+  error: string | null
+  eventCount: number
+}
 export type HardwareSection = 'motors' | 'lift' | 'array' | 'tension' | 'displacement'
 
 function finite(value: number) {

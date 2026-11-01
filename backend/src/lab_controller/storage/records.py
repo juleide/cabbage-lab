@@ -22,8 +22,18 @@ class RecordStore:
             CREATE TABLE IF NOT EXISTS logs (
                 id INTEGER PRIMARY KEY, time TEXT NOT NULL, message TEXT NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS sensor_runs (
+                id TEXT PRIMARY KEY, section TEXT NOT NULL, source TEXT NOT NULL CHECK(source='hardware'),
+                started_at REAL NOT NULL, ended_at REAL, status TEXT NOT NULL,
+                config TEXT NOT NULL, config_version TEXT NOT NULL, error TEXT
+            );
+            CREATE TABLE IF NOT EXISTS sensor_samples (
+                session_id TEXT NOT NULL REFERENCES sensor_runs(id), number INTEGER NOT NULL,
+                payload TEXT NOT NULL, PRIMARY KEY(session_id, number)
+            );
         ''')
         self.db.execute("UPDATE runs SET status='interrupted' WHERE status='running'")
+        self.db.execute("UPDATE sensor_runs SET status='interrupted', error='控制端异常退出或重启，采集已中断' WHERE status='running'")
         self.db.commit()
 
     def begin(self, run_id, library, at, config):
@@ -61,6 +71,39 @@ class RecordStore:
     def log(self, at, message):
         self.db.execute('INSERT INTO logs(time, message) VALUES (?, ?)', (at, message))
         self.db.commit()
+
+    def begin_sensor(self, status, config):
+        self.db.execute('INSERT INTO sensor_runs VALUES (?, ?, ?, ?, NULL, ?, ?, ?, NULL)',
+                        (status['sessionId'], status['section'], 'hardware', status['startedAt'], 'running',
+                         json.dumps(config, ensure_ascii=False, allow_nan=False), status['configVersion']))
+        self.db.commit()
+
+    def append_sensor(self, session_id, events):
+        if events:
+            self.db.executemany('INSERT INTO sensor_samples VALUES (?, ?, ?)',
+                                [(session_id, event['number'], json.dumps(event, ensure_ascii=False, allow_nan=False))
+                                 for event in events])
+            self.db.commit()
+
+    def finish_sensor(self, status):
+        self.db.execute('UPDATE sensor_runs SET status=?, ended_at=?, error=? WHERE id=? AND status=?',
+                        ('failed' if status['state'] == 'failed' else 'completed', status['finishedAt'],
+                         status['error'], status['sessionId'], 'running'))
+        self.db.commit()
+
+    def sensor_runs(self):
+        rows = self.db.execute('''SELECT r.id, r.section, r.source, r.started_at AS startedAt,
+            r.ended_at AS endedAt, r.status, r.config, r.config_version AS configVersion, r.error,
+            (SELECT COUNT(*) FROM sensor_samples s WHERE s.session_id=r.id) AS eventCount
+            FROM sensor_runs r ORDER BY r.started_at DESC LIMIT 20''')
+        return [{**dict(row), 'config': json.loads(row['config'])} for row in rows]
+
+    def read_sensor(self, session_id, offset, limit):
+        if not self.db.execute('SELECT 1 FROM sensor_runs WHERE id=?', (session_id,)).fetchone():
+            raise ValueError('传感器采集记录不存在')
+        rows = self.db.execute('SELECT payload FROM sensor_samples WHERE session_id=? AND number>? ORDER BY number LIMIT ?',
+                               (session_id, offset, limit))
+        return [json.loads(row['payload']) for row in rows]
 
     def logs(self):
         return [dict(row) for row in self.db.execute('SELECT time, message FROM logs ORDER BY id DESC LIMIT 200')]

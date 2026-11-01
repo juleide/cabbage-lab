@@ -25,6 +25,7 @@ test('serial scan presents ports, preserves drafts and distinguishes empty and f
       let count = 0
       ipcMain.removeHandler('controller:request')
       ipcMain.handle('controller:request', (_event, method) => {
+        if (method === 'hardware.sensors.status') return {}
         if (method === 'hardware.status') return { state: 'idle', sessionId: null, section: null, message: '', readings: null }
         if (method !== 'hardware.ports.list') throw new Error('Unexpected test request')
         count++
@@ -75,6 +76,7 @@ test('read-only verification shows asynchronous success, failure and cancellatio
       let result = { state: 'idle', sessionId: '', section: 'tension', message: '', readings: null as Record<string, number> | null }
       ipcMain.removeHandler('controller:request')
       ipcMain.handle('controller:request', (_event, method, params) => {
+        if (method === 'hardware.sensors.status') return {}
         if (method === 'hardware.verify') {
           if (params.section !== 'tension') throw new Error('Unexpected scope')
           attempt++; polls = 0
@@ -95,7 +97,7 @@ test('read-only verification shows asynchronous success, failure and cancellatio
     await expect(page.getByLabel('串口', { exact: true })).toBeDisabled()
     await expect(page.getByRole('status').filter({ hasText: '只读通信验证通过' })).toBeVisible()
     await expect(page.getByText(/本次读取：.*1234/)).toBeVisible()
-    await expect(page.getByText('模拟试验 · 支持只读验证', { exact: true })).toBeVisible()
+    await expect(page.getByText('模拟试验 · 支持真实只读采集', { exact: true })).toBeVisible()
     await page.screenshot({ path: '/tmp/cabbage-hardware-verification.png', fullPage: true })
     await verify.click()
     await expect(page.getByRole('status').filter({ hasText: '验证失败：响应超时' })).toBeVisible()

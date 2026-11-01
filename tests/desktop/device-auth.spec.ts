@@ -15,7 +15,7 @@ async function login(page: Page, password = 'auth-desktop-tests-only') {
   await page.getByRole('button', { name: '进入', exact: true }).click()
 }
 async function denied(page: Page) {
-  for (const method of ['hardware.get', 'hardware.save', 'hardware.check', 'hardware.ports.list', 'hardware.status', 'hardware.verify', 'hardware.verify.cancel']) {
+  for (const method of ['hardware.get', 'hardware.save', 'hardware.check', 'hardware.ports.list', 'hardware.status', 'hardware.verify', 'hardware.verify.cancel', 'hardware.sensors.status', 'hardware.sensors.connect', 'hardware.sensors.disconnect', 'hardware.sensors.zero', 'hardware.sensors.records.list', 'hardware.sensors.records.read']) {
     const result = await page.evaluate(async method => {
       try { await window.labDesktop!.request(method as any, {}); return 'unexpected-success' }
       catch (error) { return (error as Error).message }
@@ -47,13 +47,22 @@ test('debug login protects IPC, relocks on exit/reload and preserves a draft on 
     // Advance only this disposable application's monotonic clock, not the system clock.
     await app.evaluate(() => {
       const now = performance.now.bind(performance)
+      ;(globalThis as any).__authTestClock = now
+      Object.defineProperty(performance, 'now', { configurable: true, value: () => now() + 14 * 60000 })
+    })
+    await page.evaluate(async () => {
+      await window.labDesktop!.request('hardware.sensors.status')
+      await window.labDesktop!.request('hardware.status')
+    })
+    await app.evaluate(() => {
+      const now = (globalThis as any).__authTestClock as () => number
       Object.defineProperty(performance, 'now', { configurable: true, value: () => now() + 16 * 60000 })
     })
     try {
       const expired = await page.evaluate(() => window.labDesktop!.getDeviceDebugAuth())
       expect(expired.authorized).toBe(false)
     } finally {
-      await app.evaluate(() => { delete (performance as any).now })
+      await app.evaluate(() => { delete (performance as any).now; delete (globalThis as any).__authTestClock })
     }
     await expect(page.getByRole('heading', { name: '设备调试', exact: true })).toBeVisible()
     await expect(page.getByLabel('1 号电机站号', { exact: true })).toBeHidden()

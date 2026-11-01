@@ -8,6 +8,7 @@ from ..array.acquisition import ArrayAcquisition
 from ..devices.simulated import DEVICE_NAMES, SimulatedDevice
 from ..devices.ports import list_ports
 from ..devices.verification import VerificationManager, SUPPORTED
+from ..devices.sensors import SensorManager, SECTIONS as SENSOR_SECTIONS
 from ..storage.config import ConfigStore, LIBRARIES
 from ..storage.records import RecordStore
 from ..storage.hardware import HardwareStore, validate as validate_hardware
@@ -28,6 +29,9 @@ class Controller:
         self.config = ConfigStore(root / 'config' / 'controller.json')
         self.hardware = HardwareStore(root / 'config' / 'hardware.json')
         self.verification = VerificationManager()
+        self.sensors = SensorManager()
+        self.sensor_finished = {}
+        self.sensor_sequences = {}
         self.records = RecordStore(root / 'data' / 'experiments.sqlite3')
         self.device = SimulatedDevice()
         self.state = {
@@ -82,6 +86,7 @@ class Controller:
 
     def stop(self, reason, emergency=False):
         self.verification.cancel()
+        self.sensors.disconnect()
         self.device.stop()
         if self.state['running']:
             self.records.finish(self.state['runId'], now(), 'emergency' if emergency else 'stopped')
@@ -92,6 +97,7 @@ class Controller:
         self.publish()
 
     def publish_array(self):
+        self.poll_hardware()
         current = time.monotonic()
         if current < self.next_array_publish:
             return
@@ -123,6 +129,7 @@ class Controller:
         require(set(command) == expected.get(kind, {'type'}), '控制命令参数错误')
         if kind not in ('emergency', 'stop'):
             require(not self.verification.active(), '只读验证期间不能操作设备，请等待或取消验证')
+            require(not self.sensors.active(), '真实传感器采集期间不能操作模拟设备，请先断开传感器')
         if kind == 'emergency':
             if not self.state['stopped']:
                 self.stop('紧急停止：全部模拟执行机构停止，控制操作已锁定', emergency=True)
@@ -192,6 +199,56 @@ class Controller:
 
     def request(self, method, params):
         require(isinstance(params, dict), '请求参数必须是对象')
+        self.poll_hardware()
+        if method == 'hardware.sensors.status':
+            require(not params, '该请求不接受参数')
+            return self.sensors.snapshot()
+        if method == 'hardware.sensors.connect':
+            require(set(params) == {'section'} and params['section'] in SENSOR_SECTIONS, '请选择拉力或位移传感器')
+            self.idle()
+            self.unlocked()
+            require(not self.verification.active(), '请先等待或取消只读验证')
+            require(not self.hardware.error, self.hardware.error or '')
+            section = params['section']
+            errors = validate_hardware(self.hardware.value, complete=True, section=section)
+            require(not errors, '；'.join(errors))
+            config = self.hardware.value[section]
+            session = self.sensors.connect(section, config)
+            self.sensor_sequences[section] = 0
+            stored = False
+            try:
+                self.records.begin_sensor(session.snapshot(), config)
+                stored = True
+                session.thread.start()
+            except Exception as exc:
+                self.sensors.sessions.pop(section, None)
+                if stored:
+                    failed = session.snapshot()
+                    failed.update(state='failed', finishedAt=time.time(), error=f'启动采集线程失败：{exc}')
+                    self.records.finish_sensor(failed)
+                raise
+            label = '拉力' if section == 'tension' else '位移'
+            self.log(f'真实{label}只读采集已启动，数据独立记录，不改变模拟试验数据来源')
+            return self.sensors.snapshot()
+        if method == 'hardware.sensors.disconnect':
+            require(set(params) == {'section'} and params['section'] in SENSOR_SECTIONS, '请选择拉力或位移传感器')
+            self.sensors.disconnect(params['section'])
+            return self.sensors.snapshot()
+        if method == 'hardware.sensors.zero':
+            require(params == {'section': 'displacement'}, '仅支持位移软件相对置零')
+            session = self.sensors.sessions.get('displacement')
+            require(session is not None, '位移传感器尚未连接')
+            session.zero()
+            return self.sensors.snapshot()
+        if method == 'hardware.sensors.records.list':
+            require(not params, '该请求不接受参数')
+            return self.records.sensor_runs()
+        if method == 'hardware.sensors.records.read':
+            require(set(params) == {'sessionId', 'offset', 'limit'}, '采集记录分页参数错误')
+            require(isinstance(params['sessionId'], str) and len(params['sessionId']) <= 100, '无效的采集编号')
+            require(type(params['offset']) is int and params['offset'] >= 0, '无效的分页偏移')
+            require(type(params['limit']) is int and 1 <= params['limit'] <= 100, '单页最多读取 100 条记录')
+            return self.records.read_sensor(params['sessionId'], params['offset'], params['limit'])
         if method == 'hardware.ports.list':
             require(not params, '该请求不接受参数')
             return list_ports()
@@ -202,6 +259,7 @@ class Controller:
             require(not params, '该请求不接受参数')
             return self.verification.cancel()
         if method == 'hardware.verify':
+            require(not self.sensors.active(), '请先断开持续采集的传感器再进行只读验证')
             require(set(params) == {'section'} and params['section'] in SUPPORTED,
                     '请选择电机、拉力或位移分类进行只读验证；升降及电子皮肤尚不支持')
             self.idle()
@@ -241,9 +299,10 @@ class Controller:
             return self.array.status()
         if method == 'hardware.get':
             return {'config': copy.deepcopy(self.hardware.value), 'error': self.hardware.error,
-                    'drivers': {'available': False, 'message': '当前试验仍使用模拟设备；已支持 Modbus 只读验证，尚未开放真实运动及 USB 采集。'}}
+                    'drivers': {'available': False, 'message': '当前试验仍使用模拟设备；支持只读验证及拉力/位移独立采集，尚未开放真实运动及 USB 采集。'}}
         if method == 'hardware.save':
             self.idle()
+            require(not self.sensors.active(), '持续采集期间不能修改设备配置，请先断开传感器')
             require(not self.verification.active(), '验证期间不能修改设备配置')
             require(set(params) == {'config'}, '设备配置参数错误')
             result = self.hardware.save(params['config'])
@@ -286,6 +345,23 @@ class Controller:
             return None
         raise ValueError('不允许的请求方法')
 
+    def poll_hardware(self):
+        for section, session in self.sensors.sessions.items():
+            events, status = session.collect()
+            session_id = status['sessionId']
+            if events:
+                self.records.append_sensor(session_id, events)
+                self.sensor_sequences[section] = events[-1]['number']
+            if status['state'] in ('failed', 'disconnected') and self.sensor_finished.get(section) != session_id:
+                end = dict(number=self.sensor_sequences.get(section, 0) + 1, kind='end', source='hardware',
+                           section=section, sessionId=session_id, quality=status['quality'],
+                           raw=None, value=None, receivedAt=status['finishedAt'], error=status['error'])
+                self.records.append_sensor(session_id, [end])
+                self.records.finish_sensor(status)
+                self.sensor_finished[section] = session_id
+                label = '拉力' if section == 'tension' else '位移'
+                self.log(f'真实{label}采集已结束：' + (status['error'] or '已断开'))
+
     def close(self):
         try:
             self.stop('控制端关闭：停止试验和全部模拟执行机构')
@@ -294,6 +370,10 @@ class Controller:
                 self.verification.close()
             finally:
                 try:
-                    self.array.close()
+                    self.sensors.close()
+                    self.poll_hardware()
                 finally:
-                    self.records.close()
+                    try:
+                        self.array.close()
+                    finally:
+                        self.records.close()
