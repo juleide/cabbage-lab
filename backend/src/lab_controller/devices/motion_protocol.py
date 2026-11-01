@@ -50,6 +50,16 @@ def motor_status(word):
                     (bool(word & (1 << bit)) for bit in range(7))))
 
 
+def motor_position(words):
+    """Preserve register bits; signedness and mechanical units are unverified."""
+    if (not isinstance(words, (list, tuple)) or len(words) != 2
+            or any(type(word) is not int or not 0 <= word <= 0xFFFF for word in words)):
+        raise ValueError('电机位置必须为高字在前的两个 uint16 寄存器')
+    high, low = words
+    return dict(highWord=high, lowWord=low, rawUnsigned=(high << 16) | low,
+                interpretationVerified=False)
+
+
 def lift_stop_request():
     return bytes.fromhex('AA 03 04 00 FF')
 

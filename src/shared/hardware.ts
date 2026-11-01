@@ -101,6 +101,15 @@ export interface MotionStatus {
     receivedAt: number
     ageMs: number
     raw?: number
+    position?: {
+      highWord: number
+      lowWord: number
+      rawUnsigned: number
+      interpretationVerified: false
+      receivedAt: number
+      ageMs: number
+      quality: 'valid' | 'stale'
+    }
     running?: boolean
     fault?: boolean
     enabled?: boolean

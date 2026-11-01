@@ -12,7 +12,7 @@ import uuid
 from collections import deque
 
 from .modbus import ReadOnlyBus, crc16, open_serial
-from .motion_protocol import (LiftFeedbackParser, lift_stop_request, motor_status,
+from .motion_protocol import (LiftFeedbackParser, lift_stop_request, motor_position, motor_status,
                               motor_stop_ack, motor_stop_request)
 from .sensors import port_key
 
@@ -58,6 +58,7 @@ class MotionSession:
         self.audit = deque(maxlen=128)
         self.audit_overflow = False
         self.last_received = {}
+        self.position_received = {}
         self.targets = ('motor1', 'motor2') if section == 'motors' else ('lift',)
         self.status = dict(sessionId=uuid.uuid4().hex, section=section, source='hardware',
                            state='connecting', readings={}, commands={}, faultLatched=False,
@@ -82,6 +83,11 @@ class MotionSession:
                 reading['ageMs'] = max(0, age)
                 reading['quality'] = ('valid' if age <= value['staleAfterMs']
                                       and value['state'] == 'monitoring' else 'stale')
+                if 'position' in reading:
+                    position_age = max(0, (time.monotonic() - self.position_received[target]) * 1000)
+                    reading['position']['ageMs'] = position_age
+                    reading['position']['quality'] = ('valid' if position_age <= value['staleAfterMs']
+                        and value['state'] == 'monitoring' else 'stale')
             return value
 
     def collect(self):
@@ -151,8 +157,11 @@ class MotionSession:
 
     def update_reading(self, target, reading):
         with self.lock:
+            position = self.status['readings'].get(target, {}).get('position')
             self.last_received[target] = time.monotonic()
             self.status['readings'][target] = dict(reading, receivedAt=time.time(), quality='valid')
+            if position is not None:
+                self.status['readings'][target]['position'] = position
             fault = reading.get('fault', False) or reading.get('kind') == 'error'
             first_fault = fault and not self.status['faultLatched']
             if fault:
@@ -160,6 +169,12 @@ class MotionSession:
                 self.note_locked(f'{target} 故障反馈：{reading}')
         if first_fault:
             self.stop(emergency=True)
+
+    def update_position(self, target, words):
+        position = motor_position(words)
+        with self.lock:
+            self.position_received[target] = time.monotonic()
+            self.status['readings'][target]['position'] = dict(position, receivedAt=time.time(), quality='valid')
 
     def run(self):
         port, error = None, None
@@ -203,6 +218,18 @@ class MotionSession:
                         if self.wake.is_set():
                             break
                         self.update_reading(target, dict(raw=word, **motor_status(word)))
+                        # Separate transactions are not a simultaneous status/position snapshot.
+                        if self.wake.is_set():
+                            break
+                        try:
+                            words = bus.read(int(self.config[target]), 8, 2)
+                        except ValueError:
+                            if self.wake.is_set():
+                                break
+                            raise
+                        if self.wake.is_set():
+                            break
+                        self.update_position(target, words)
                     next_poll = time.monotonic() + self.config['serial']['intervalMs'] / 1000
                 else:
                     self.wake.wait(min(0.05, max(0, next_poll - time.monotonic())))

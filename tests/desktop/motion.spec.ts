@@ -21,6 +21,7 @@ test('stop-only motion diagnostics keep hardware outcome distinct from simulatio
     await app.evaluate(({ ipcMain }) => {
       const fixture = globalThis as any
       fixture.__motionStale = false
+      fixture.__positionStale = false
       const statuses: Record<string, any> = {}
       fixture.__motionCalls = []
       ipcMain.removeHandler('controller:request')
@@ -33,7 +34,9 @@ test('stop-only motion diagnostics keep hardware outcome distinct from simulatio
           if (method === 'hardware.motion.connect') statuses[section] = {
             sessionId: `fixture-${section}`, section, source: 'hardware', state: 'monitoring',
             configVersion: 'fixture-version', faultLatched: false, error: null, motionAllowed: false,
-            readings: section === 'motors' ? { motor1: { raw: 16, running: false, enabled: true, fault: false, quality: 'valid' } } : {}, commands: {}
+            readings: section === 'motors' ? { motor1: { raw: 16, running: false, enabled: true, fault: false, quality: 'valid',
+              position: { highWord: 65535, lowWord: 65535, rawUnsigned: 4294967295, interpretationVerified: false, quality: 'valid' }
+            } } : {}, commands: {}
           }
           if (method === 'hardware.motion.stop') {
             statuses[section].commands = { [section === 'motors' ? 'motor1' : 'lift']: {
@@ -44,6 +47,7 @@ test('stop-only motion diagnostics keep hardware outcome distinct from simulatio
           }
           if (method === 'hardware.motion.disconnect') statuses[section].state = 'disconnected'
           if (fixture.__motionStale && statuses.motors) statuses.motors.readings.motor1.quality = 'stale'
+          if (fixture.__positionStale && statuses.motors) statuses.motors.readings.motor1.position.quality = 'stale'
           return statuses
         }
         throw new Error(`Unexpected fixture request ${method}`)
@@ -54,6 +58,11 @@ test('stop-only motion diagnostics keep hardware outcome distinct from simulatio
     await motors.getByRole('button', { name: '连接电机总线诊断', exact: true }).click()
     await expect(motors.getByText('诊断监听中', { exact: true })).toBeVisible()
     await expect(motors.getByText(/运行位为 0（非安全停机确认）/)).toBeVisible()
+    await expect(motors.getByText(/motor1：原始位置 4294967295/)).toBeVisible()
+    await app.evaluate(() => { (globalThis as any).__positionStale = true })
+    await expect(motors.getByText('motor1：原始位置已过期或不可用', { exact: true })).toBeVisible()
+    await expect(motors.getByText(/运行位为 0（非安全停机确认）/)).toBeVisible()
+    await expect(motors.getByText(/原始位置 4294967295/)).toHaveCount(0)
     await expect(page.getByLabel('共用串口', { exact: true })).toBeDisabled()
     await expect(page.getByRole('button', { name: '连接验证', exact: true })).toBeDisabled()
     await motors.getByRole('button', { name: '发送电机软件急停', exact: true }).click()
@@ -97,7 +106,9 @@ class Serial:
     def reset_input_buffer(self): self.buffer.clear()
     def write(self, data):
         record('write', hex=data.hex())
-        if data[1] == 3: self.buffer.extend(frame(bytes([data[0], 3, 2, 0, 16])))
+        if data[1] == 3:
+            payload = bytes([0, 16]) if data[3] == 4 else bytes([0, 0, 19, 136])
+            self.buffer.extend(frame(bytes([data[0], 3, len(payload)]) + payload))
         if data[1] == 6: self.buffer.extend(data)
         return len(data)
     def read(self, size):
@@ -129,6 +140,7 @@ class Serial:
     const panel = page.getByRole('article', { name: '电机总线真实诊断', exact: true })
     await panel.getByRole('button', { name: '连接电机总线诊断', exact: true }).click()
     await expect(panel.getByText(/motor2：状态字 16/)).toBeVisible()
+    await expect(panel.getByText(/motor2：原始位置 5000/)).toBeVisible()
     const readJournal = async () => (await readFile(journal, 'utf8')).trim().split('\n').map(line => JSON.parse(line) as { kind: string; hex?: string })
     expect((await readJournal()).filter(event => event.kind === 'write').every(event => event.hex!.slice(2, 4) === '03')).toBe(true)
     await page.getByRole('button', { name: '外观与主题', exact: true }).click()

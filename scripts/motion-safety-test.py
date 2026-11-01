@@ -135,6 +135,16 @@ class SafetyTests(unittest.TestCase):
             self.assertFalse(target['canExecute'])
             self.assertTrue({'EXECUTION_NOT_IMPLEMENTED', 'EVIDENCE_NOT_VERIFIED', 'IDENTITY_NOT_VERIFIED',
                              'PROTOCOL_UNCONFIRMED', 'POSITION_UNAVAILABLE'} <= {reason['code'] for reason in target['reasons']})
+            session['readings']['motor1']['position'] = dict(quality='valid', rawUnsigned=125,
+                                                           interpretationVerified=False)
+            target = assess(store, hardware(), {'motors': session})['targets']['motor1']
+            codes = {reason['code'] for reason in target['reasons']}
+            self.assertNotIn('POSITION_UNAVAILABLE', codes)
+            self.assertIn('POSITION_INTERPRETATION_UNVERIFIED', codes)
+            self.assertFalse(target['canExecute'])
+            session['readings']['motor1']['position']['quality'] = 'stale'
+            codes = {reason['code'] for reason in assess(store, hardware(), {'motors': session})['targets']['motor1']['reasons']}
+            self.assertIn('POSITION_UNAVAILABLE', codes)
             session['faultLatched'] = True
             session['readings']['motor1'].update(quality='stale', positiveLimit=True)
             target = assess(store, hardware(), {'motors': session}, stopped=True)['targets']['motor1']

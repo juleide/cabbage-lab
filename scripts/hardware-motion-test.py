@@ -35,8 +35,10 @@ class Port:
     def write(self, data):
         self.threads.add(threading.get_ident())
         self.writes.append(data)
-        if data[1] == 3 and self.read_reply:
-            self.buffer.extend(frame(bytes([data[0], 3, 2]) + struct.pack('>H', 8 if self.fault else 0)))
+        if len(data) == 8 and data[1] == 3 and self.read_reply:
+            address, count = struct.unpack('>HH', data[2:6])
+            words = [8 if self.fault else 0] if address == 4 else [0x1234, 0x5678]
+            self.buffer.extend(frame(bytes([data[0], 3, count * 2]) + struct.pack('>' + 'H' * len(words), *words)))
         elif data[1] == 6 and self.ack:
             self.buffer.extend(data)
         return len(data) - 1 if self.short else len(data)
@@ -70,6 +72,120 @@ class MotionTests(unittest.TestCase):
                 return
             time.sleep(0.003)
         self.fail('等待运动诊断状态超时')
+
+    def test_position_poll_order_raw_bits_and_no_motion_writes(self):
+        port = Port()
+        manager = MotionManager(lambda settings: port)
+        try:
+            session = manager.connect('motors', config()['motors'])
+            self.wait(lambda: all(session.snapshot()['readings'].get(target, {}).get('position')
+                                  for target in ('motor1', 'motor2')))
+            requests = [(packet[0], *struct.unpack('>HH', packet[2:6])) for packet in port.writes]
+            self.assertEqual(requests[:4], [(1, 4, 1), (1, 8, 2), (2, 4, 1), (2, 8, 2)])
+            self.assertEqual(port.writes[1].hex(), '01030008000245c9')
+            for reading in session.snapshot()['readings'].values():
+                position = reading['position']
+                self.assertEqual(position['rawUnsigned'], 0x12345678)
+                self.assertEqual(position['quality'], 'valid')
+                self.assertFalse(position['interpretationVerified'])
+                self.assertNotIn('positionMm', position)
+            self.assertTrue(all(packet[1] == 3 for packet in port.writes))
+        finally:
+            manager.close()
+
+    def test_position_and_status_freshness_are_independent(self):
+        session = MotionSession('motors', config()['motors'], lambda settings: None)
+        session.status['state'] = 'monitoring'
+        session.update_reading('motor1', dict(raw=0))
+        session.last_received['motor1'] -= 2
+        session.update_position('motor1', [65535, 65535])
+        reading = session.snapshot()['readings']['motor1']
+        self.assertEqual(reading['quality'], 'stale')
+        self.assertEqual(reading['position']['quality'], 'valid')
+        self.assertEqual(reading['position']['rawUnsigned'], 0xFFFFFFFF)
+        session.position_received['motor1'] -= 2
+        position_time = session.status['readings']['motor1']['position']['receivedAt']
+        session.update_reading('motor1', dict(raw=16))
+        reading = session.snapshot()['readings']['motor1']
+        self.assertEqual(reading['quality'], 'valid')
+        self.assertEqual(reading['position']['quality'], 'stale')
+        self.assertEqual(reading['position']['receivedAt'], position_time)
+        reading['position']['rawUnsigned'] = 0
+        self.assertEqual(session.snapshot()['readings']['motor1']['position']['rawUnsigned'], 0xFFFFFFFF)
+        session.status['state'] = 'disconnecting'
+        self.assertEqual(session.snapshot()['readings']['motor1']['quality'], 'stale')
+
+    def test_position_timeout_fails_closed_without_retry(self):
+        port = Port()
+        write = port.write
+        def missing_position(data):
+            count = write(data)
+            if data[1] == 3 and data[3] == 8:
+                port.buffer.clear()
+            return count
+        port.write = missing_position
+        manager = MotionManager(lambda settings: port)
+        try:
+            session = manager.connect('motors', config()['motors'])
+            self.wait(lambda: not manager.active())
+            status = session.snapshot()
+            self.assertEqual(status['state'], 'failed')
+            self.assertTrue(status['faultLatched'])
+            self.assertEqual(status['readings']['motor1']['quality'], 'stale')
+            self.assertNotIn('position', status['readings']['motor1'])
+            self.assertEqual(len(port.writes), 2)
+            self.assertTrue(port.closed)
+        finally:
+            manager.close()
+
+    def test_emergency_preempts_position_wait_without_publishing_partial_feedback(self):
+        port = Port()
+        waiting = threading.Event()
+        write = port.write
+        def missing_position(data):
+            count = write(data)
+            if data[1] == 3 and data[3] == 8:
+                port.buffer.clear()
+                waiting.set()
+            return count
+        port.write = missing_position
+        manager = MotionManager(lambda settings: port)
+        settings = config()['motors']
+        settings['serial']['timeoutMs'] = 60000
+        try:
+            session = manager.connect('motors', settings)
+            self.assertTrue(waiting.wait(1))
+            start = time.monotonic()
+            manager.stop(emergency=True, close=True)
+            self.wait(lambda: not manager.active())
+            self.assertLess(time.monotonic() - start, 1)
+            self.assertNotIn('position', session.snapshot()['readings']['motor1'])
+            self.assertEqual(port.writes[2:], [motor_stop_request(1, emergency=True), motor_stop_request(2, emergency=True)])
+        finally:
+            manager.close()
+
+    def test_invalid_position_responses_never_publish_or_retry(self):
+        responses = [frame(bytes.fromhex('0103020001')), frame(bytes.fromhex('02030400001388')),
+                     bytes.fromhex('010304000013880000'), frame(bytes.fromhex('018302'))]
+        for response in responses:
+            with self.subTest(response=response.hex()):
+                port = Port()
+                write = port.write
+                def invalid(data):
+                    count = write(data)
+                    if data[1] == 3 and data[3] == 8:
+                        port.buffer[:] = response
+                    return count
+                port.write = invalid
+                manager = MotionManager(lambda settings: port)
+                try:
+                    session = manager.connect('motors', config()['motors'])
+                    self.wait(lambda: not manager.active())
+                    self.assertEqual(session.snapshot()['state'], 'failed')
+                    self.assertNotIn('position', session.snapshot()['readings']['motor1'])
+                    self.assertEqual(len(port.writes), 2)
+                finally:
+                    manager.close()
 
     def test_connect_only_reads_two_stations_one_owner(self):
         port = Port()
@@ -310,7 +426,8 @@ class MotionTests(unittest.TestCase):
         manager = MotionManager(lambda settings: port)
         try:
             session = manager.connect('motors', config()['motors'])
-            self.wait(lambda: len(session.snapshot()['readings']) == 2)
+            self.wait(lambda: all(session.snapshot()['readings'].get(target, {}).get('position')
+                                  for target in ('motor1', 'motor2')))
             port.read_reply = False
             self.assertTrue(entered.wait(1))
             status = session.snapshot()
@@ -318,6 +435,7 @@ class MotionTests(unittest.TestCase):
             self.assertTrue(status['faultLatched'])
             self.assertTrue(status['error'])
             self.assertTrue(all(reading['quality'] == 'stale' for reading in status['readings'].values()))
+            self.assertTrue(all(reading['position']['quality'] == 'stale' for reading in status['readings'].values()))
             self.assertTrue(manager.active())
             with self.assertRaises(ValueError):
                 manager.connect('motors', config()['motors'])

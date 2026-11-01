@@ -42,7 +42,11 @@ def assess(store, hardware, sessions, hardware_error=None, stopped=False):
         if not reading or reading['quality'] != 'valid':
             reasons.append(dict(code='FEEDBACK_UNAVAILABLE', message='没有新鲜有效的目标反馈'))
         if section == 'motors':
-            reasons.append(dict(code='POSITION_UNAVAILABLE', message='当前电机诊断未采集可用于运动许可的位置反馈'))
+            position = reading.get('position') if reading else None
+            if not position or position.get('quality') != 'valid':
+                reasons.append(dict(code='POSITION_UNAVAILABLE', message='没有新鲜有效的电机原始位置反馈'))
+            reasons.append(dict(code='POSITION_INTERPRETATION_UNVERIFIED',
+                                message='电机位置仅保留原始寄存器位，符号/标定/物理单位未经核验，不用于运动许可'))
             if reading and (reading.get('fault') or reading.get('positiveLimit') or reading.get('negativeLimit') or reading.get('running')):
                 reasons.append(dict(code='DEVICE_NOT_IDLE', message='目标反馈存在故障、软限位或运行位'))
         else:

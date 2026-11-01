@@ -42,7 +42,7 @@ export function MotionConnections({ controller, unlocked, disabled, visible, onA
 
   async function operate(section: MotionSection, operation: 'connect' | 'stop' | 'disconnect', emergency = false) {
     if (!online || !unlocked || (pending && operation === 'connect')) return
-    if (operation === 'connect' && !window.confirm('将打开真实执行机构串口。电机仅查询两个站号的状态，升降仅监听 RS232；连接不发送启动、使能或清错。之后点击停止/断开、权限锁定或退出时会发送停止指令，但不能保证机械停止。请确认硬接线急停和现场安全。是否继续？')) return
+    if (operation === 'connect' && !window.confirm('将打开真实执行机构串口。电机仅查询两个站号的状态和原始位置，升降仅监听 RS232；连接不发送启动、使能或清错。之后点击停止/断开、权限锁定或退出时会发送停止指令，但不能保证机械停止。请确认硬接线急停和现场安全。是否继续？')) return
     setPending(true); setError('')
     const version = ++revision.current
     try {
@@ -57,7 +57,7 @@ export function MotionConnections({ controller, unlocked, disabled, visible, onA
 
   return <section className="hw-sensor-panel" hidden={!visible} aria-label="真实执行机构诊断">
     <h3>真实执行机构状态与停止诊断</h3>
-    <p className="hw-note">仅支持电机状态查询、停止/软件急停及升降 RS232 38400/8N1 监听/停止。不开放启动、使能、释放、回零、上升或下降。停止回显不等于机械停止；升降高度不是已停反馈。断开会先尽力发送停止，权限锁定、休眠和退出也会请求停止并断开，不自动重连。</p>
+    <p className="hw-note">仅支持电机状态/原始位置查询、停止/软件急停及升降 RS232 38400/8N1 监听/停止。状态与位置分次读取，非同时快照；位置符号和物理单位待核验，不换算毫米、不作为运动许可。不开放启动、使能、释放、回零、上升或下降。停止回显不等于机械停止；升降高度不是已停反馈。断开会先尽力发送停止，权限锁定、休眠和退出也会请求停止并断开，不自动重连。</p>
     {error && <p className="settings-warning" role="alert">{error}</p>}
     <div className="hw-grid">{(['motors', 'lift'] as const).map(section => {
       const status = statuses[section]
@@ -69,6 +69,9 @@ export function MotionConnections({ controller, unlocked, disabled, visible, onA
         {!!status?.auditDropped && <p className="settings-warning">审计缓冲溢出，缺失 {status.auditDropped} 条，不能视为完整操作记录。</p>}
         {status && !Object.keys(status.readings).length && <p className="hw-note">未收到有效反馈；端口打开不等于设备在线。</p>}
         {Object.entries(status?.readings || {}).map(([target, reading]) => <p className="hw-note" key={target}>{target}：{!online || !known || reading.quality !== 'valid' || status?.state !== 'monitoring' ? '反馈已过期或不可用' : section === 'motors' ? `状态字 ${reading.raw} · ${reading.running ? '运行位为 1' : '运行位为 0（非安全停机确认）'} · ${reading.fault ? '故障' : '无故障位'} · ${reading.enabled ? '已使能' : '未使能'}` : reading.kind === 'position' ? `高度 ${reading.positionMm} mm（单位待实机核验）` : `错误码 ${reading.code}（00 不代表无故障）`}</p>)}
+        {section === 'motors' && Object.entries(status?.readings || {}).map(([target, reading]) => <p className="hw-note" key={`position-${target}`}>{target}：{!online || !known || status?.state !== 'monitoring' || !reading.position || reading.position.quality !== 'valid'
+          ? '原始位置已过期或不可用'
+          : `原始位置 ${reading.position.rawUnsigned} · 高字 0x${reading.position.highWord.toString(16).padStart(4, '0')} / 低字 0x${reading.position.lowWord.toString(16).padStart(4, '0')}（无符号位展示，符号/标定待核验）`}</p>)}
         {Object.entries(status?.commands || {}).map(([target, command]) => <p key={target} role="status" className="hw-note">{target}：{results[command.state]}{command.error && `：${command.error}`}</p>)}
         <div className="hw-sensor-actions">
           <button disabled={disabled || pending || !known || !online || !unlocked || connected} onClick={() => void operate(section, 'connect')}>连接{labels[section]}诊断</button>

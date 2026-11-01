@@ -7,11 +7,22 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'backend' / 'src'))
 from lab_controller.devices.modbus import frame
 from lab_controller.devices.motion_protocol import (
     LiftFeedbackParser, lift_stop_request, motor_status, motor_stop_ack,
-    motor_stop_request,
+    motor_stop_request, motor_position,
 )
 
 
 class MotionProtocolTests(unittest.TestCase):
+    def test_position_words_preserve_bits_without_signed_guess(self):
+        for words, expected in (([0, 5000], 5000), ([0x1234, 0x5678], 0x12345678),
+                                ([0x8000, 0], 0x80000000), ([65535, 65535], 0xFFFFFFFF)):
+            result = motor_position(words)
+            self.assertEqual(result['rawUnsigned'], expected)
+            self.assertEqual([result['highWord'], result['lowWord']], words)
+            self.assertFalse(result['interpretationVerified'])
+        for words in ([], [1], [1, 2, 3], [True, 0], [0, 1.0], [-1, 0], [65536, 0], '00'):
+            with self.assertRaises(ValueError):
+                motor_position(words)
+
     def test_stop_vectors(self):
         self.assertEqual(motor_stop_request(1).hex(), '0106004e0020e805')
         self.assertEqual(motor_stop_request(1, emergency=True).hex(), '0106004e0040e82d')
