@@ -1,3 +1,4 @@
+import { openDeviceConnection } from './engineering'
 import { test, expect, _electron as electron } from '@playwright/test'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -5,14 +6,13 @@ import { join } from 'node:path'
 
 test('continuous sensors show quality, preserve metric mapping boundaries and provide separate records', async () => {
   const data = await mkdtemp(join(tmpdir(), 'lab-sensors-'))
-  const app = await electron.launch({ args: ['.', `--user-data-dir=${join(data, 'ui')}`], env: { ...process.env, LAB_DATA_DIR: data, LAB_DEVICE_DEBUG_USERNAME: 'test-engineer', LAB_DEVICE_DEBUG_PASSWORD: 'sensor-tests-only' } })
+  const app = await electron.launch({ args: ['.', `--user-data-dir=${join(data, 'ui')}`], env: { ...process.env, LAB_DATA_DIR: data, LAB_DEVICE_DEBUG_PASSWORD: 'sensor-tests-only' } })
   try {
     const page = await app.firstWindow()
     page.on('dialog', dialog => { void dialog.accept() })
     await expect(page.getByText(/设备未就绪|设备异常/, { exact: true })).toBeVisible()
     await page.getByRole('button', { name: '设置', exact: true }).click()
-    await page.getByRole('button', { name: '设备连接', exact: true }).click()
-    await page.getByLabel('用户名', { exact: true }).fill('test-engineer')
+    await openDeviceConnection(page)
     await page.getByLabel('密码', { exact: true }).fill('sensor-tests-only')
     await page.getByRole('button', { name: '进入', exact: true }).click()
     await page.getByRole('button', { name: '拉力与位移', exact: true }).click()

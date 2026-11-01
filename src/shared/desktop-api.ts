@@ -8,7 +8,7 @@ export type ExportResult =
 /** Only whitelisted device operations and fixed desktop capabilities cross the bridge. */
 export interface DesktopAPI {
   getDeviceDebugAuth(): Promise<DeviceAuthState>
-  loginDeviceDebug(username: string, password: string): Promise<DeviceAuthResult>
+  loginDeviceDebug(password: string): Promise<DeviceAuthResult>
   lockDeviceDebug(): Promise<void>
   touchDeviceDebug(): Promise<DeviceAuthState>
   onDeviceDebugLocked(callback: () => void): () => void

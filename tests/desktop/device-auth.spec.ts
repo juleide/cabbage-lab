@@ -1,90 +1,61 @@
-import { test, expect, _electron as electron, type Page } from '@playwright/test'
+import { test, expect, _electron as electron } from '@playwright/test'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { openDeviceConnection } from './engineering'
 
-async function enter(page: Page) {
-  await expect(page.getByText(/设备未就绪|设备异常/, { exact: true })).toBeVisible()
-  await page.getByRole('button', { name: '设置', exact: true }).click()
-  await page.getByRole('button', { name: '设备连接', exact: true }).click()
-  await expect(page.getByRole('heading', { name: '设备调试', exact: true })).toBeVisible()
-}
-async function login(page: Page, password = 'auth-desktop-tests-only') {
-  await page.getByLabel('用户名', { exact: true }).fill('test-engineer')
-  await page.getByLabel('密码', { exact: true }).fill(password)
-  await page.getByRole('button', { name: '进入', exact: true }).click()
-}
-async function denied(page: Page) {
-  for (const method of ['hardware.safety.get', 'hardware.safety.status', 'hardware.safety.save', 'hardware.safety.preview', 'hardware.motion.status', 'hardware.motion.connect', 'hardware.motion.stop', 'hardware.motion.disconnect', 'hardware.get', 'hardware.save', 'hardware.check', 'hardware.ports.list', 'hardware.status', 'hardware.verify', 'hardware.verify.cancel', 'hardware.sensors.status', 'hardware.sensors.connect', 'hardware.sensors.disconnect', 'hardware.sensors.zero', 'hardware.sensors.records.list', 'hardware.sensors.records.read']) {
-    const result = await page.evaluate(async method => {
-      try { await window.labDesktop!.request(method as any, {}); return 'unexpected-success' }
-      catch (error) { return (error as Error).message }
-    }, method)
-    expect(result).toContain('研发调试未解锁或已过期')
-  }
-}
+const password = 'engineering-desktop-tests-only'
 
-test('debug login protects IPC, relocks on exit/reload and preserves a draft on idle timeout', async () => {
-  const data = await mkdtemp(join(tmpdir(), 'lab-debug-auth-'))
-  const app = await electron.launch({ args: ['.', `--user-data-dir=${join(data, 'ui')}`], env: { ...process.env, LAB_DATA_DIR: data, LAB_DEVICE_DEBUG_USERNAME: 'test-engineer', LAB_DEVICE_DEBUG_PASSWORD: 'auth-desktop-tests-only' } })
+test('ten version taps open password-only engineering mode; categories retain access and leaving settings locks it', async () => {
+  const data = await mkdtemp(join(tmpdir(), 'lab-engineering-'))
+  const app = await electron.launch({ args: ['.', `--user-data-dir=${join(data, 'ui')}`], env: { ...process.env, LAB_DATA_DIR: data, LAB_DEVICE_DEBUG_USERNAME: '', LAB_DEVICE_DEBUG_PASSWORD: password } })
   try {
     const page = await app.firstWindow()
-    await enter(page)
-    expect(await app.evaluate(() => [process.env.LAB_DEVICE_DEBUG_USERNAME, process.env.LAB_DEVICE_DEBUG_PASSWORD])).toEqual([undefined, undefined])
-    await denied(page)
-    await expect(page.getByRole('button', { name: '执行机构', exact: true })).toHaveCount(0)
-    await page.getByLabel('密码', { exact: true }).fill('not-a-real-secret')
-    await page.getByRole('button', { name: '显示密码', exact: true }).click()
-    await expect(page.getByLabel('密码', { exact: true })).toHaveAttribute('type', 'text')
-    await login(page, 'wrong-test-password')
-    await expect(page.locator('.device-auth-page').getByRole('status')).toContainText('用户名或密码错误')
-    await expect(page.getByLabel('密码', { exact: true })).toHaveValue('')
-    await expect(page.getByLabel('密码', { exact: true })).toHaveAttribute('type', 'password')
-    await login(page)
-    await expect(page.getByRole('button', { name: '执行机构', exact: true })).toBeVisible()
-    await page.getByRole('button', { name: '执行机构', exact: true }).click()
-    await page.getByLabel('1 号电机站号', { exact: true }).fill('7')
-    // Advance only this disposable application's monotonic clock, not the system clock.
-    await app.evaluate(() => {
-      const now = performance.now.bind(performance)
-      ;(globalThis as any).__authTestClock = now
-      Object.defineProperty(performance, 'now', { configurable: true, value: () => now() + 14 * 60000 })
-    })
-    await page.evaluate(async () => {
-      await window.labDesktop!.request('hardware.safety.get')
-      await window.labDesktop!.request('hardware.safety.status')
-      await window.labDesktop!.request('hardware.motion.status')
-      await window.labDesktop!.request('hardware.sensors.status')
-      await window.labDesktop!.request('hardware.status')
-    })
-    await app.evaluate(() => {
-      const now = (globalThis as any).__authTestClock as () => number
-      Object.defineProperty(performance, 'now', { configurable: true, value: () => now() + 16 * 60000 })
-    })
-    try {
-      const expired = await page.evaluate(() => window.labDesktop!.getDeviceDebugAuth())
-      expect(expired.authorized).toBe(false)
-    } finally {
-      await app.evaluate(() => { delete (performance as any).now; delete (globalThis as any).__authTestClock })
-    }
-    await expect(page.getByRole('heading', { name: '设备调试', exact: true })).toBeVisible()
-    await expect(page.getByLabel('1 号电机站号', { exact: true })).toBeHidden()
-    await denied(page)
-    await login(page)
-    await expect(page.getByLabel('1 号电机站号', { exact: true })).toHaveValue('7')
-    await page.evaluate(() => { (window as any).__confirm = window.confirm; window.confirm = () => true })
+    const menu = page.getByRole('button', { name: '设备连接', exact: true })
+    const dialog = page.getByRole('dialog', { name: '工程模式', exact: true })
+    await page.getByRole('button', { name: '设置', exact: true }).click()
+    await expect(menu).toHaveCount(0)
+    await page.getByRole('button', { name: '运行与诊断', exact: true }).click()
+    for (let i = 0; i < 9; i++) await page.getByRole('button', { name: '应用版本', exact: true }).click()
+    await expect(dialog).toHaveCount(0)
+    await page.getByRole('button', { name: '应用版本', exact: true }).click()
+    await expect(dialog).toBeVisible()
+    await expect(page.getByLabel('用户名', { exact: true })).toHaveCount(0)
+    await dialog.getByRole('button', { name: '取消', exact: true }).click()
+    for (let i = 0; i < 9; i++) await page.getByRole('button', { name: '应用版本', exact: true }).click()
+    await expect(dialog).toHaveCount(0)
     await page.getByRole('button', { name: '外观与主题', exact: true }).click()
-    await page.evaluate(() => { window.confirm = (window as any).__confirm })
-    await expect(page.getByRole('heading', { name: '外观与主题', exact: true })).toBeVisible()
-    await denied(page)
-    await page.getByRole('button', { name: '设备连接', exact: true }).click()
-    await login(page)
+    await openDeviceConnection(page)
+    await page.getByLabel('密码', { exact: true }).fill('wrong')
+    await dialog.getByRole('button', { name: '进入', exact: true }).click()
+    await expect(dialog.getByRole('status')).toHaveText('密码错误')
+    await expect(menu).toHaveCount(0)
+    await page.getByLabel('密码', { exact: true }).fill(password)
+    await dialog.getByRole('button', { name: '进入', exact: true }).click()
+    await expect(dialog).toHaveCount(0)
+    await expect(menu).toBeVisible()
+    await expect(page.getByRole('heading', { name: '设备连接', exact: true })).toBeVisible()
+    await page.getByRole('button', { name: '外观与主题', exact: true }).click()
+    await expect(menu).toBeVisible()
+    expect(await page.evaluate(() => window.labDesktop!.getDeviceDebugAuth())).toMatchObject({ authorized: true })
+    await menu.click()
+    await page.getByRole('button', { name: '返回试验台', exact: true }).click()
+    expect(await page.evaluate(() => window.labDesktop!.getDeviceDebugAuth())).toMatchObject({ authorized: false })
+    const denied = await page.evaluate(async () => {
+      try { await window.labDesktop!.request('hardware.get'); return '' }
+      catch (error) { return (error as Error).message }
+    })
+    expect(denied).toContain('未解锁或已过期')
+    await page.getByRole('button', { name: '设置', exact: true }).click()
+    await expect(menu).toHaveCount(0)
+    await openDeviceConnection(page)
+    for (let i = 0; i < 5; i++) await page.evaluate(() => window.labDesktop!.loginDeviceDebug('wrong'))
+    await expect(dialog.getByRole('status')).toContainText('秒后重试')
     await page.reload()
     await page.getByRole('button', { name: '设置', exact: true }).click()
-    await page.getByRole('button', { name: '设备连接', exact: true }).click()
-    await expect(page.getByRole('heading', { name: '设备调试', exact: true })).toBeVisible()
-    await denied(page)
-    await page.screenshot({ path: '/tmp/cabbage-device-auth.png', fullPage: true })
+    await expect(menu).toHaveCount(0)
+    await openDeviceConnection(page)
+    await expect(dialog.getByRole('status')).toContainText('秒后重试')
   } finally {
     await app.evaluate(({ BrowserWindow }) => { for (const window of BrowserWindow.getAllWindows()) window.destroy() }).catch(() => {})
     await app.close().catch(() => {})
@@ -92,41 +63,20 @@ test('debug login protects IPC, relocks on exit/reload and preserves a draft on 
   }
 })
 
-test('missing credentials fail closed; five failures impose cooldown across refresh', async () => {
-  const data = await mkdtemp(join(tmpdir(), 'lab-debug-limit-'))
-  const app = await electron.launch({ args: ['.', `--user-data-dir=${join(data, 'ui')}`], env: { ...process.env, LAB_DATA_DIR: data, LAB_DEVICE_DEBUG_USERNAME: 'test-engineer', LAB_DEVICE_DEBUG_PASSWORD: 'auth-desktop-tests-only' } })
+test('missing engineering password fails closed', async () => {
+  const data = await mkdtemp(join(tmpdir(), 'lab-engineering-missing-'))
+  const app = await electron.launch({ args: ['.', `--user-data-dir=${join(data, 'ui')}`], env: { ...process.env, LAB_DATA_DIR: data, LAB_DEVICE_DEBUG_PASSWORD: '' } })
   try {
     const page = await app.firstWindow()
-    await enter(page)
-    for (let i = 0; i < 5; i++) {
-      await page.evaluate(() => window.labDesktop!.loginDeviceDebug('test-engineer', 'wrong-test-password'))
-    }
-    await expect(page.locator('.device-auth-page').getByRole('status')).toContainText('秒后重试')
-    await expect(page.getByRole('button', { name: '进入', exact: true })).toBeDisabled()
-    await page.reload()
     await page.getByRole('button', { name: '设置', exact: true }).click()
-    await page.getByRole('button', { name: '设备连接', exact: true }).click()
-    await expect(page.locator('.device-auth-page').getByRole('status')).toContainText('秒后重试')
-    const result = await page.evaluate(() => window.labDesktop!.loginDeviceDebug('test-engineer', 'auth-desktop-tests-only'))
-    expect(result.authorized).toBe(false)
-    expect(result.retryAfterSeconds).toBeGreaterThan(0)
-    await denied(page)
+    await openDeviceConnection(page)
+    const dialog = page.getByRole('dialog', { name: '工程模式', exact: true })
+    await expect(dialog.getByRole('status')).toContainText('未配置工程模式密码')
+    await expect(dialog.getByRole('button', { name: '进入', exact: true })).toBeDisabled()
+    await expect(page.getByRole('button', { name: '设备连接', exact: true })).toHaveCount(0)
   } finally {
     await app.evaluate(({ BrowserWindow }) => { for (const window of BrowserWindow.getAllWindows()) window.destroy() }).catch(() => {})
     await app.close().catch(() => {})
     await rm(data, { recursive: true, force: true })
-  }
-  const missing = await mkdtemp(join(tmpdir(), 'lab-debug-missing-'))
-  const other = await electron.launch({ args: ['.', `--user-data-dir=${join(missing, 'ui')}`], env: { ...process.env, LAB_DATA_DIR: missing, LAB_DEVICE_DEBUG_USERNAME: '', LAB_DEVICE_DEBUG_PASSWORD: '' } })
-  try {
-    const page = await other.firstWindow()
-    await enter(page)
-    await expect(page.locator('.device-auth-page').getByRole('status')).toContainText('未配置研发调试凭据')
-    await expect(page.getByRole('button', { name: '进入', exact: true })).toBeDisabled()
-    await denied(page)
-  } finally {
-    await other.evaluate(({ BrowserWindow }) => { for (const window of BrowserWindow.getAllWindows()) window.destroy() }).catch(() => {})
-    await other.close().catch(() => {})
-    await rm(missing, { recursive: true, force: true })
   }
 })

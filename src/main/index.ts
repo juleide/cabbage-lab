@@ -44,8 +44,8 @@ function lockDeviceDebug() {
 
 function registerIPC() {
   handler('device-auth:status', () => deviceAuth.status(mainWindow!.webContents.id))
-  handler('device-auth:login', (username: unknown, password: unknown) => {
-    const result = deviceAuth.login(mainWindow!.webContents.id, username, password)
+  handler('device-auth:login', (password: unknown) => {
+    const result = deviceAuth.login(mainWindow!.webContents.id, password)
     authWasAuthorized = result.authorized
     if (!result.authorized) lockDeviceDebug()
     return result

@@ -1,21 +1,18 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import type { DeviceAuthState } from '../../../../shared/device-auth'
-import type { useController } from '../../hooks/useController'
-import { HardwareSettings } from './HardwareSettings'
+import { Modal } from '../Modal'
 import '../../styles/device-auth.css'
 
-export function DeviceDebugGate({ controller, dirty, onDirtyChange }: {
-  controller: ReturnType<typeof useController>
-  dirty: boolean
-  onDirtyChange: (dirty: boolean) => void
+export function DeviceDebugGate({ children, onUnlocked }: {
+  onUnlocked: () => void
+  children: (authorized: boolean, open: () => void) => ReactNode
 }) {
   const [auth, setAuth] = useState<DeviceAuthState | null>(null)
-  const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [visible, setVisible] = useState(false)
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
-  const [opened, setOpened] = useState(false)
+  const [dialog, setDialog] = useState(false)
   const authorized = useRef(false)
   const alive = useRef(true)
   const attempt = useRef(0)
@@ -29,11 +26,11 @@ export function DeviceDebugGate({ controller, dirty, onDirtyChange }: {
     const apply = (state: DeviceAuthState) => {
       if (!alive.current) return
       if (authorized.current && !state.authorized) {
-        setMessage('调试权限已锁定，请重新验证。未保存草稿仍保留在当前页面。')
+        setMessage('工程权限已锁定，请重新验证。未保存草稿仍保留在当前页面。')
         setPassword(''); setVisible(false)
       }
       authorized.current = state.authorized
-      if (state.authorized) setOpened(true)
+      if (state.authorized) setDialog(false)
       setAuth(state)
     }
     const status = () => {
@@ -54,7 +51,7 @@ export function DeviceDebugGate({ controller, dirty, onDirtyChange }: {
       authorized.current = false
       setAuth(current => current ? { ...current, authorized: false } : current)
       if (wasAuthorized) {
-        setMessage('调试权限已锁定，请重新验证。未保存草稿仍保留在当前页面。')
+        setMessage('工程权限已锁定，请重新验证。未保存草稿仍保留在当前页面。')
         setPassword(''); setVisible(false)
       }
       void status()
@@ -77,7 +74,7 @@ export function DeviceDebugGate({ controller, dirty, onDirtyChange }: {
         if (!alive.current || state.authorized) return
         authorized.current = false
         setAuth(state)
-        setMessage('调试权限已过期，请重新验证')
+        setMessage('工程权限已过期，请重新验证')
       }).catch(() => {
         if (!alive.current) return
         authorized.current = false
@@ -99,13 +96,13 @@ export function DeviceDebugGate({ controller, dirty, onDirtyChange }: {
     const submitted = password
     setPassword(''); setVisible(false)
     try {
-      const response = await api.loginDeviceDebug(username, submitted)
+      const response = await api.loginDeviceDebug(submitted)
       const result = response.authorized ? { ...response, ...await api.getDeviceDebugAuth() } : response
       if (!alive.current || id !== attempt.current) return
       authorized.current = result.authorized
       setAuth(result)
       setMessage(result.message || '')
-      if (result.authorized) setOpened(true)
+      if (result.authorized) { setDialog(false); onUnlocked() }
       else requestAnimationFrame(() => passwordInput.current?.focus())
     } catch {
       if (alive.current) setMessage('验证服务暂不可用，请稍后重试')
@@ -113,20 +110,17 @@ export function DeviceDebugGate({ controller, dirty, onDirtyChange }: {
   }
 
   return <>
-    {!auth?.authorized && <section className="settings-card device-auth-page">
+    {children(!!auth?.authorized, () => { setMessage(''); setPassword(''); setVisible(false); setDialog(true) })}
+    {dialog && <Modal title="工程模式" onClose={() => { if (!busy) { setDialog(false); setPassword(''); setVisible(false) } }}>
       <div className="device-auth-card">
-        <h2>设备调试</h2>
         <form onSubmit={event => { event.preventDefault(); void login() }}>
-          <label>用户名<input autoFocus autoComplete="off" spellCheck={false} required maxLength={256} value={username} placeholder="请输入用户名" disabled={busy} onChange={event => setUsername(event.target.value)} /></label>
           <label htmlFor="device-debug-password">密码</label>
-          <div className="device-auth-password"><input id="device-debug-password" ref={passwordInput} type={visible ? 'text' : 'password'} autoComplete="new-password" required maxLength={1024} value={password} placeholder="请输入密码" disabled={busy} onChange={event => setPassword(event.target.value)} /><button type="button" aria-label={visible ? '隐藏密码' : '显示密码'} aria-pressed={visible} disabled={busy} onClick={() => setVisible(value => !value)}>{visible ? '隐藏' : '显示'}</button></div>
-          {(!auth || !auth.configured || message || !!auth.retryAfterSeconds) && <p className="device-auth-message" role="status">{auth && !auth.configured ? '未配置研发调试凭据，请联系管理员' : auth?.retryAfterSeconds ? `尝试次数过多，请 ${auth.retryAfterSeconds} 秒后重试` : message || '正在读取认证状态…'}</p>}
-          <button className="device-auth-submit" type="submit" disabled={busy || !auth?.configured || !!auth?.retryAfterSeconds || !username || !password}>{busy ? '验证中…' : '进入'}</button>
+          <div className="device-auth-password"><input autoFocus id="device-debug-password" ref={passwordInput} type={visible ? 'text' : 'password'} autoComplete="new-password" required maxLength={1024} value={password} placeholder="请输入工程模式密码" disabled={busy} onChange={event => setPassword(event.target.value)} /><button type="button" aria-label={visible ? '隐藏密码' : '显示密码'} aria-pressed={visible} disabled={busy} onClick={() => setVisible(value => !value)}>{visible ? '隐藏' : '显示'}</button></div>
+          {(!auth || !auth.configured || message || !!auth.retryAfterSeconds) && <p className="device-auth-message" role="status">{auth && !auth.configured ? '未配置工程模式密码，请联系管理员' : auth?.retryAfterSeconds ? `尝试次数过多，请 ${auth.retryAfterSeconds} 秒后重试` : message || '正在读取认证状态…'}</p>}
+          <button className="device-auth-submit" type="submit" disabled={busy || !auth?.configured || !!auth?.retryAfterSeconds || !password}>{busy ? '验证中…' : '进入'}</button>
+          <button className="btn" type="button" disabled={busy} onClick={() => { setDialog(false); setPassword(''); setVisible(false) }}>取消</button>
         </form>
       </div>
-    </section>}
-    {opened && <div hidden={!auth?.authorized}>
-      <HardwareSettings controller={controller} unlocked={!!auth?.authorized} onDirtyChange={onDirtyChange} />
-    </div>}
+    </Modal>}
   </>
 }

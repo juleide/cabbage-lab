@@ -61,7 +61,7 @@ class Serial:
 `)
   const app = await electron.launch({ args: ['.', `--user-data-dir=${join(data, 'ui')}`], env: {
     ...process.env, LAB_DATA_DIR: data, PYTHONPATH: data, LAB_JOG_JOURNAL: journal, LAB_JOG_SIGNAL: signal,
-    LAB_DEVICE_DEBUG_USERNAME: 'test-engineer', LAB_DEVICE_DEBUG_PASSWORD: 'jog-ui-tests-only'
+    LAB_DEVICE_DEBUG_PASSWORD: 'jog-ui-tests-only'
   } })
   try {
     const page = await app.firstWindow()

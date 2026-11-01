@@ -1,10 +1,10 @@
+import { openDeviceConnection } from './engineering'
 import { test, expect, _electron as electron, type Page } from '@playwright/test'
 import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 async function unlock(page: Page) {
-  await page.getByLabel('用户名', { exact: true }).fill('test-engineer')
   await page.getByLabel('密码', { exact: true }).fill('hardware-tests-only')
   await page.getByRole('button', { name: '进入', exact: true }).click()
   await expect(page.getByRole('heading', { name: '设备连接', exact: true })).toBeVisible()
@@ -12,12 +12,12 @@ async function unlock(page: Page) {
 
 test('serial scan presents ports, preserves drafts and distinguishes empty and failed scans', async () => {
   const data = await mkdtemp(join(tmpdir(), 'lab-ports-'))
-  const app = await electron.launch({ args: ['.', `--user-data-dir=${join(data, 'ui')}`], env: { ...process.env, LAB_DATA_DIR: data, LAB_DEVICE_DEBUG_USERNAME: 'test-engineer', LAB_DEVICE_DEBUG_PASSWORD: 'hardware-tests-only' } })
+  const app = await electron.launch({ args: ['.', `--user-data-dir=${join(data, 'ui')}`], env: { ...process.env, LAB_DATA_DIR: data, LAB_DEVICE_DEBUG_PASSWORD: 'hardware-tests-only' } })
   try {
     const page = await app.firstWindow()
     await expect(page.getByText(/设备未就绪|设备异常/, { exact: true })).toBeVisible()
     await page.getByRole('button', { name: '设置', exact: true }).click()
-    await page.getByRole('button', { name: '设备连接', exact: true }).click()
+    await openDeviceConnection(page)
     await unlock(page)
     await page.getByRole('button', { name: '执行机构', exact: true }).click()
     await page.getByLabel('共用串口', { exact: true }).fill('COM99')
@@ -54,13 +54,13 @@ test('serial scan presents ports, preserves drafts and distinguishes empty and f
 
 test('read-only verification shows asynchronous success, failure and cancellation without enabling real control', async () => {
   const data = await mkdtemp(join(tmpdir(), 'lab-verification-'))
-  const app = await electron.launch({ args: ['.', `--user-data-dir=${join(data, 'ui')}`], env: { ...process.env, LAB_DATA_DIR: data, LAB_DEVICE_DEBUG_USERNAME: 'test-engineer', LAB_DEVICE_DEBUG_PASSWORD: 'hardware-tests-only' } })
+  const app = await electron.launch({ args: ['.', `--user-data-dir=${join(data, 'ui')}`], env: { ...process.env, LAB_DATA_DIR: data, LAB_DEVICE_DEBUG_PASSWORD: 'hardware-tests-only' } })
   try {
     const page = await app.firstWindow()
     page.on('dialog', dialog => { void dialog.accept() })
     await expect(page.getByText(/设备未就绪|设备异常/, { exact: true })).toBeVisible()
     await page.getByRole('button', { name: '设置', exact: true }).click()
-    await page.getByRole('button', { name: '设备连接', exact: true }).click()
+    await openDeviceConnection(page)
     await unlock(page)
     await page.getByRole('button', { name: '拉力与位移', exact: true }).click()
     await page.getByLabel('串口', { exact: true }).fill('TEST')
@@ -114,14 +114,14 @@ test('read-only verification shows asynchronous success, failure and cancellatio
 
 test('hardware draft persistence, bindings, module selection and unsaved navigation', async () => {
   const data = await mkdtemp(join(tmpdir(), 'lab-hardware-'))
-  const app = await electron.launch({ args: ['.', `--user-data-dir=${join(data, 'ui')}`], env: { ...process.env, LAB_DATA_DIR: data, LAB_DEVICE_DEBUG_USERNAME: 'test-engineer', LAB_DEVICE_DEBUG_PASSWORD: 'hardware-tests-only' } })
+  const app = await electron.launch({ args: ['.', `--user-data-dir=${join(data, 'ui')}`], env: { ...process.env, LAB_DATA_DIR: data, LAB_DEVICE_DEBUG_PASSWORD: 'hardware-tests-only' } })
   try {
     const page = await app.firstWindow()
     const errors: string[] = []
     page.on('pageerror', error => errors.push(error.message))
     await expect(page.getByText(/设备未就绪|设备异常/, { exact: true })).toBeVisible()
     await page.getByRole('button', { name: '设置', exact: true }).click()
-    await page.getByRole('button', { name: '设备连接', exact: true }).click()
+    await openDeviceConnection(page)
     await unlock(page)
     await expect(page.getByRole('heading', { name: '设备连接', exact: true })).toBeVisible()
     await page.getByRole('button', { name: '执行机构', exact: true }).click()
@@ -169,7 +169,7 @@ test('hardware draft persistence, bindings, module selection and unsaved navigat
     await expect(page.getByText('草稿已保存', { exact: true })).toBeVisible()
     await page.reload()
     await page.getByRole('button', { name: '设置', exact: true }).click()
-    await page.getByRole('button', { name: '设备连接', exact: true }).click()
+    await openDeviceConnection(page)
     await unlock(page)
     await page.getByRole('button', { name: '电子皮肤', exact: true }).click()
     await expect(page.getByLabel('连接方式')).toHaveValue('serial')
@@ -185,7 +185,7 @@ test('hardware draft persistence, bindings, module selection and unsaved navigat
 
 test('hardware settings remain accessible after a hardware-free emergency stop', async () => {
   const data = await mkdtemp(join(tmpdir(), 'lab-hardware-workflow-'))
-  const app = await electron.launch({ args: ['.', `--user-data-dir=${join(data, 'ui')}`], env: { ...process.env, LAB_DATA_DIR: data, LAB_DEVICE_DEBUG_USERNAME: 'test-engineer', LAB_DEVICE_DEBUG_PASSWORD: 'hardware-tests-only' } })
+  const app = await electron.launch({ args: ['.', `--user-data-dir=${join(data, 'ui')}`], env: { ...process.env, LAB_DATA_DIR: data, LAB_DEVICE_DEBUG_PASSWORD: 'hardware-tests-only' } })
   try {
     const page = await app.firstWindow()
     await expect(page.getByText(/设备未就绪|设备异常/, { exact: true })).toBeVisible()
@@ -195,7 +195,7 @@ test('hardware settings remain accessible after a hardware-free emergency stop',
     await page.getByRole('button', { name: '紧急停止', exact: true }).click()
     await expect(page.getByText('设备已急停', { exact: true })).toBeVisible()
     await page.getByRole('button', { name: '设置', exact: true }).click()
-    await page.getByRole('button', { name: '设备连接', exact: true }).click()
+    await openDeviceConnection(page)
     await unlock(page)
     await expect(page.getByRole('heading', { name: '设备连接', exact: true })).toBeVisible()
     await page.getByRole('button', { name: '运行与诊断', exact: true }).click()

@@ -1,3 +1,4 @@
+import { openDeviceConnection } from './engineering'
 import { test, expect, _electron as electron, type Page } from '@playwright/test'
 import { mkdtemp, mkdir, readFile, writeFile, rm } from 'node:fs/promises'
 import { join } from 'node:path'
@@ -14,8 +15,7 @@ function legacyHardware() {
 async function enter(page: Page) {
   await expect(page.getByText(/设备未就绪|设备异常/, { exact: true })).toBeVisible()
   await page.getByRole('button', { name: '设置', exact: true }).click()
-  await page.getByRole('button', { name: '设备连接', exact: true }).click()
-  await page.getByLabel('用户名', { exact: true }).fill('test-engineer')
+  await openDeviceConnection(page)
   await page.getByLabel('密码', { exact: true }).fill('motor-config-tests-only')
   await page.getByRole('button', { name: '进入', exact: true }).click()
   await page.getByRole('button', { name: '执行机构', exact: true }).click()
@@ -35,7 +35,7 @@ for (const unsupported of [false, true]) {
     const original = JSON.stringify(legacy)
     await writeFile(path, original)
     await writeFile(join(data, 'serial.py'), `from pathlib import Path\nPath(${JSON.stringify(marker)}).open('a').write('import\\n')\nraise AssertionError('Config must never import serial')\n`)
-    const app = await electron.launch({ args: ['.', `--user-data-dir=${join(data, 'ui')}`], env: { ...process.env, LAB_DATA_DIR: data, PYTHONPATH: data, LAB_DEVICE_DEBUG_USERNAME: 'test-engineer', LAB_DEVICE_DEBUG_PASSWORD: 'motor-config-tests-only' } })
+    const app = await electron.launch({ args: ['.', `--user-data-dir=${join(data, 'ui')}`], env: { ...process.env, LAB_DATA_DIR: data, PYTHONPATH: data, LAB_DEVICE_DEBUG_PASSWORD: 'motor-config-tests-only' } })
     try {
       const page = await app.firstWindow()
       const errors: string[] = []

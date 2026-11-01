@@ -1,3 +1,4 @@
+import { openDeviceConnection } from './engineering'
 import { test, expect, _electron as electron } from '@playwright/test'
 import { mkdtemp, rm, readFile, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -5,7 +6,7 @@ import { join } from 'node:path'
 
 test('stop-only motion diagnostics distinguish command acknowledgement from physical stop', async () => {
   const data = await mkdtemp(join(tmpdir(), 'lab-motion-'))
-  const app = await electron.launch({ args: ['.', `--user-data-dir=${join(data, 'ui')}`], env: { ...process.env, LAB_DATA_DIR: data, LAB_DEVICE_DEBUG_USERNAME: 'test-engineer', LAB_DEVICE_DEBUG_PASSWORD: 'motion-tests-only' } })
+  const app = await electron.launch({ args: ['.', `--user-data-dir=${join(data, 'ui')}`], env: { ...process.env, LAB_DATA_DIR: data, LAB_DEVICE_DEBUG_PASSWORD: 'motion-tests-only' } })
   try {
     const page = await app.firstWindow()
     const errors: string[] = []
@@ -13,8 +14,7 @@ test('stop-only motion diagnostics distinguish command acknowledgement from phys
     page.on('dialog', dialog => { void dialog.accept().catch(() => {}) })
     await expect(page.getByText(/设备未就绪|设备异常/, { exact: true })).toBeVisible()
     await page.getByRole('button', { name: '设置', exact: true }).click()
-    await page.getByRole('button', { name: '设备连接', exact: true }).click()
-    await page.getByLabel('用户名', { exact: true }).fill('test-engineer')
+    await openDeviceConnection(page)
     await page.getByLabel('密码', { exact: true }).fill('motion-tests-only')
     await page.getByRole('button', { name: '进入', exact: true }).click()
     await page.getByRole('button', { name: '执行机构', exact: true }).click()
@@ -120,15 +120,14 @@ class Serial:
         del self.buffer[:size]
         return result
 `)
-  const app = await electron.launch({ args: ['.', `--user-data-dir=${join(data, 'ui')}`], env: { ...process.env, LAB_DATA_DIR: data, PYTHONPATH: data, LAB_MOTION_TEST_WRITES: journal, LAB_MOTION_GUARD_SIGNAL: signal, LAB_DEVICE_DEBUG_USERNAME: 'test-engineer', LAB_DEVICE_DEBUG_PASSWORD: 'motion-ipc-tests-only' } })
+  const app = await electron.launch({ args: ['.', `--user-data-dir=${join(data, 'ui')}`], env: { ...process.env, LAB_DATA_DIR: data, PYTHONPATH: data, LAB_MOTION_TEST_WRITES: journal, LAB_MOTION_GUARD_SIGNAL: signal, LAB_DEVICE_DEBUG_PASSWORD: 'motion-ipc-tests-only' } })
   try {
     const page = await app.firstWindow()
     page.on('dialog', dialog => { void dialog.accept().catch(() => {}) })
     await expect(page.getByText(/设备未就绪|设备异常/, { exact: true })).toBeVisible()
     await page.getByRole('button', { name: '设置', exact: true }).click()
-    await page.getByRole('button', { name: '设备连接', exact: true }).click()
+    await openDeviceConnection(page)
     async function login() {
-      await page.getByLabel('用户名', { exact: true }).fill('test-engineer')
       await page.getByLabel('密码', { exact: true }).fill('motion-ipc-tests-only')
       await page.getByRole('button', { name: '进入', exact: true }).click()
     }
@@ -161,9 +160,8 @@ class Serial:
     const stops = events.filter(event => event.kind === 'write' && event.hex!.slice(2, 4) === '06')
     expect(stops.map(event => event.hex!.slice(0, 12)).sort()).toEqual(['0106004e0040', '0206004e0040'])
     expect(events.filter(event => event.kind === 'open')).toHaveLength(1)
-    await page.getByRole('button', { name: '设备连接', exact: true }).click()
-    await expect(page.getByRole('heading', { name: '设备调试', exact: true })).toBeVisible()
-    await login()
+    await openDeviceConnection(page)
+    await expect(page.getByRole('heading', { name: '设备连接', exact: true })).toBeVisible()
     const status = await page.evaluate(() => window.labDesktop!.request<any>('hardware.motion.status'))
     expect(status.motors.state).toBe(triggerGuard ? 'failed' : 'disconnected')
     expect(status.motors.diagnosticGuard.state).toBe(triggerGuard ? 'tripped' : 'closed')

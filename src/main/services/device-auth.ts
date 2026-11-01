@@ -8,12 +8,10 @@ export const DEVICE_AUTH_IDLE_MS = 15 * 60 * 1000
 const COOLDOWN_MS = 60 * 1000
 const MAX_ATTEMPTS = 5
 const digest = (value: string) => createHash('sha256').update(value, 'utf8').digest()
-const sha256Hex = (value: string) => digest(value).toString('hex')
 const isSha256Hex = (value: string | undefined) => /^[0-9a-f]{64}$/i.test(value ?? '')
 
 /** Main-process memory only. Neither credentials nor sessions cross into Python. */
 export class DeviceDebugAuth {
-  private username?: Buffer
   private password?: Buffer
   private owner?: number
   private expiresAt = 0
@@ -21,10 +19,9 @@ export class DeviceDebugAuth {
   private blockedUntil = 0
   private readonly clock: () => number
 
-  constructor(username?: string, password?: string, clock = () => performance.now()) {
+  constructor(password?: string, clock = () => performance.now()) {
     this.clock = clock
-    if (username?.trim() && password?.trim() && username.length <= 256 && password.length <= 1024) {
-      this.username = isSha256Hex(username) ? Buffer.from(username.toLowerCase(), 'hex') : digest(username)
+    if (password?.trim() && password.length <= 1024) {
       this.password = isSha256Hex(password) ? Buffer.from(password.toLowerCase(), 'hex') : digest(password)
     }
   }
@@ -32,26 +29,25 @@ export class DeviceDebugAuth {
   status(owner: number): DeviceAuthState {
     if (this.clock() >= this.expiresAt) this.lock()
     return {
-      configured: !!this.username && !!this.password,
+      configured: !!this.password,
       authorized: this.owner !== undefined && this.owner === owner,
       retryAfterSeconds: Math.max(0, Math.ceil((this.blockedUntil - this.clock()) / 1000)),
       idleTimeoutMs: DEVICE_AUTH_IDLE_MS
     }
   }
 
-  login(owner: number, username: unknown, password: unknown): DeviceAuthResult {
+  login(owner: number, password: unknown): DeviceAuthResult {
     this.lock()
     const state = this.status(owner)
-    if (!state.configured) return { ...state, message: '未配置研发调试凭据，请联系管理员' }
+    if (!state.configured) return { ...state, message: '未配置工程模式密码，请联系管理员' }
     if (state.retryAfterSeconds) return { ...state, message: '尝试次数过多，请稍后重试' }
     // After cooldown, grant a new group of attempts; refresh/lock never resets failures.
     if (this.blockedUntil) { this.blockedUntil = 0; this.failures = 0 }
-    const valid = typeof username === 'string' && typeof password === 'string' && username.length <= 256 && password.length <= 1024
-    const usernameMatches = timingSafeEqual(digest(valid ? username : ''), this.username!)
+    const valid = typeof password === 'string' && password.length <= 1024
     const passwordMatches = timingSafeEqual(digest(valid ? password : ''), this.password!)
-    if (!valid || !usernameMatches || !passwordMatches) {
+    if (!valid || !passwordMatches) {
       if (++this.failures >= MAX_ATTEMPTS) this.blockedUntil = this.clock() + COOLDOWN_MS
-      return { ...this.status(owner), message: '用户名或密码错误' }
+      return { ...this.status(owner), message: '密码错误' }
     }
     this.failures = 0
     this.owner = owner
@@ -93,7 +89,6 @@ export async function loadDeviceDebugAuth(filename: string | undefined, environm
     return source
   }
   return new DeviceDebugAuth(
-    resolveValue(environment.LAB_DEVICE_DEBUG_USERNAME, file.LAB_DEVICE_DEBUG_USERNAME, bundled.LAB_DEVICE_DEBUG_USERNAME),
     resolveValue(environment.LAB_DEVICE_DEBUG_PASSWORD, file.LAB_DEVICE_DEBUG_PASSWORD, bundled.LAB_DEVICE_DEBUG_PASSWORD)
   )
 }
@@ -109,8 +104,8 @@ async function readPackagedCredentials(filename: string): Promise<Record<string,
   if (!timingSafeEqual(createHmac('sha256', key).update(encrypted).digest(), checksum)) throw new Error('打包凭据校验失败')
   const decipher = createDecipheriv('aes-256-gcm', key, nonce)
   decipher.setAuthTag(tag)
-  const [version, username = '', password = ''] = Buffer.concat([decipher.update(encrypted), decipher.final()]).toString('utf8').split('\n')
-  if (version !== '0' || !username || !password) throw new Error('打包凭据格式无效')
-  return { LAB_DEVICE_DEBUG_USERNAME: username, LAB_DEVICE_DEBUG_PASSWORD: password }
+  const [version, password = ''] = Buffer.concat([decipher.update(encrypted), decipher.final()]).toString('utf8').split('\n')
+  if (version !== '1' || !password) throw new Error('打包凭据格式无效')
+  return { LAB_DEVICE_DEBUG_PASSWORD: password }
 }
 

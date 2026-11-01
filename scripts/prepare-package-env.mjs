@@ -8,9 +8,8 @@ const source = resolve(root, '.env')
 const output = resolve(root, 'resources/config/device.env.enc')
 
 const values = parseEnv(await readFile(source, 'utf8'))
-const username = values.LAB_DEVICE_DEBUG_USERNAME?.trim()
-const password = values.LAB_DEVICE_DEBUG_PASSWORD?.trim()
-if (!username || !password) {
+const password = values.LAB_DEVICE_DEBUG_PASSWORD
+if (!password?.trim()) {
   await mkdir(dirname(output), { recursive: true })
   await writeFile(output, '')
   console.log('device.env.enc: credentials disabled; empty package created')
@@ -18,7 +17,7 @@ if (!username || !password) {
 }
 
 const key = randomBytes(32)
-const payload = Buffer.from(`0\n${username}\n${password}`, 'utf8')
+const payload = Buffer.from(`1\n${password}`, 'utf8')
 const nonce = randomBytes(12)
 const cipher = createCipheriv('aes-256-gcm', key, nonce)
 const encrypted = Buffer.concat([cipher.update(payload), cipher.final()])

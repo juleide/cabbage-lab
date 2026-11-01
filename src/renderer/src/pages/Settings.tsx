@@ -7,6 +7,7 @@ import type { useTheme } from '../hooks/useTheme'
 import { AppearanceSettings } from '../components/settings/AppearanceSettings'
 import { ExperimentSettings } from '../components/settings/ExperimentSettings'
 import { RecordsSettings } from '../components/settings/RecordsSettings'
+import { HardwareSettings } from '../components/settings/HardwareSettings'
 import { DeviceDebugGate } from '../components/settings/DeviceDebugGate'
 import { DiagnosticsSettings } from '../components/settings/DiagnosticsSettings'
 
@@ -35,10 +36,12 @@ export function Settings({ display, onBack, controller, appearance, exporting, o
   const [draft, setDraft] = useState<LabConfig | null>(config)
   const [saving, setSaving] = useState(false)
   const [hardwareDirty, setHardwareDirty] = useState(false)
-  async function leaveHardware(action: () => void) {
+  async function leaveHardware(action: () => void, exitingSettings = false) {
     if (section === 'hardware' && hardwareDirty && !window.confirm('设备连接或运动安全草稿尚未保存，确认放弃修改？')) return
-    if (section === 'hardware' && window.labDesktop) {
-      try { await window.labDesktop.lockDeviceDebug() }
+    if (window.labDesktop && exitingSettings) {
+      try {
+        if ((await window.labDesktop.getDeviceDebugAuth()).authorized) await window.labDesktop.lockDeviceDebug()
+      }
       catch { notify('无法锁定调试权限，请稍后重试'); return }
     }
     setHardwareDirty(false)
@@ -68,14 +71,14 @@ export function Settings({ display, onBack, controller, appearance, exporting, o
   }
 
   return (
-    <main className="settings-page">
+    <DeviceDebugGate onUnlocked={() => setSection('hardware')}>{(engineering, openEngineering) => <main className="settings-page">
       <nav className="settings-nav" aria-label="设置分类">
-        <button className="settings-back" onClick={() => leaveHardware(onBack)}>
+        <button className="settings-back" onClick={() => leaveHardware(onBack, true)}>
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 6-6 6 6 6M8 12h12" /></svg>
           返回试验台
         </button>
         <div className="settings-nav-items">
-        {sections.map(item => <button key={item.id} className={section === item.id ? 'active' : ''}
+        {sections.filter(item => item.id !== 'hardware' || engineering).map(item => <button key={item.id} className={section === item.id ? 'active' : ''}
           aria-current={section === item.id ? 'page' : undefined} onClick={() => { if (item.id !== section) leaveHardware(() => setSection(item.id)) }}><SettingsNavIcon section={item.id} /><span>{item.label}</span><svg className="settings-nav-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg></button>)}
         </div>
         <div className="settings-nav-note">
@@ -92,10 +95,10 @@ export function Settings({ display, onBack, controller, appearance, exporting, o
         {section === 'records' && <RecordsSettings info={info} online={online} library={state?.database}
           exporting={exporting} loadRecords={loadRecords} onExport={onExport} onDirectory={openDirectory} />}
         {section === 'diagnostics' && <DiagnosticsSettings info={info} online={online} idle={idle}
-          busy={busy || exporting || saving} error={error} onRestart={restart} onStop={() => { void controller.send({ type: 'stop' }) }} />}
-        {section === 'hardware' && <DeviceDebugGate controller={controller} dirty={hardwareDirty} onDirtyChange={setHardwareDirty} />}
+          onEngineering={openEngineering} busy={busy || exporting || saving} error={error} onRestart={restart} onStop={() => { void controller.send({ type: 'stop' }) }} />}
+        {section === 'hardware' && <><div hidden={!engineering}><HardwareSettings controller={controller} unlocked={engineering} onDirtyChange={setHardwareDirty} /></div>{!engineering && <section className="settings-card"><p>工程权限已失效，请重新验证。</p><button className="btn" onClick={openEngineering}>进入工程模式</button></section>}</>}
       </div>
-    </main>
+    </main>}</DeviceDebugGate>
   )
 }
 

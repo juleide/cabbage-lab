@@ -4,7 +4,7 @@ import type { ControllerEvent } from '../shared/controller'
 
 const api: DesktopAPI = {
   getDeviceDebugAuth: () => ipcRenderer.invoke('device-auth:status'),
-  loginDeviceDebug: (username, password) => ipcRenderer.invoke('device-auth:login', username, password),
+  loginDeviceDebug: password => ipcRenderer.invoke('device-auth:login', password),
   lockDeviceDebug: () => ipcRenderer.invoke('device-auth:lock'),
   touchDeviceDebug: () => ipcRenderer.invoke('device-auth:touch'),
   onDeviceDebugLocked: callback => {

@@ -1,7 +1,9 @@
+import { useRef } from 'react'
 import { useArrayDiagnostics } from '../../hooks/useArrayDiagnostics'
 import type { AppInfo } from '../../../../shared/controller'
 
 interface Props {
+  onEngineering: () => void
   info: AppInfo | null
   online: boolean
   idle: boolean
@@ -10,7 +12,11 @@ interface Props {
   onRestart: () => void
   onStop: () => void
 }
-export function DiagnosticsSettings({ info, online, idle, busy, error, onRestart, onStop }: Props) {
+export function DiagnosticsSettings({ info, online, idle, busy, error, onRestart, onStop, onEngineering }: Props) {
+  const clicks = useRef(0)
+  function tapVersion() {
+    if (++clicks.current === 10) { clicks.current = 0; onEngineering() }
+  }
   const array = useArrayDiagnostics(online)
   const diagnostic = array.status?.diagnostics
   const correction = array.status?.correction
@@ -18,7 +24,7 @@ export function DiagnosticsSettings({ info, online, idle, busy, error, onRestart
     <section className="settings-card">
       <h3>运行与诊断</h3>
       <dl className="settings-details">
-        <div><dt>应用版本</dt><dd>{info?.version || '—'}</dd></div>
+        <div className="version-engineering-trigger" role="button" tabIndex={0} aria-label="应用版本" onClick={tapVersion} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); tapVersion() } }}><dt>应用版本</dt><dd>{info?.version || '—'}</dd></div>
         <div><dt>运行平台</dt><dd>{info?.platform || '—'}</dd></div>
         <div><dt>运行环境</dt><dd>真实硬件接入（设备连接及采集状态见设备连接页）</dd></div>
         <div><dt>控制端</dt><dd>{online ? 'Python 在线' : '离线 · 设备状态未知'}</dd></div>

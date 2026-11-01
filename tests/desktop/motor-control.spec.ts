@@ -1,3 +1,4 @@
+import { openDeviceConnection } from './engineering'
 import { test, expect, _electron as electron } from '@playwright/test'
 import { mkdtemp, mkdir, readFile, writeFile, rm, rename } from 'node:fs/promises'
 import { join } from 'node:path'
@@ -61,7 +62,7 @@ class Serial:
 `)
   const app = await electron.launch({ args: ['.', `--user-data-dir=${join(data, 'ui')}`], env: {
     ...process.env, LAB_DATA_DIR: data, PYTHONPATH: data, LAB_JOG_JOURNAL: journal, LAB_JOG_SIGNAL: signal,
-    LAB_DEVICE_DEBUG_USERNAME: 'test-engineer', LAB_DEVICE_DEBUG_PASSWORD: 'jog-ui-tests-only'
+    LAB_DEVICE_DEBUG_PASSWORD: 'jog-ui-tests-only'
   } })
   try {
     const page = await app.firstWindow()
@@ -75,8 +76,7 @@ class Serial:
     })
     expect(denied).toMatch(/未解锁/)
     await page.getByRole('button', { name: '设置', exact: true }).click()
-    await page.getByRole('button', { name: '设备连接', exact: true }).click()
-    await page.getByLabel('用户名', { exact: true }).fill('test-engineer')
+    await openDeviceConnection(page)
     await page.getByLabel('密码', { exact: true }).fill('jog-ui-tests-only')
     await page.getByRole('button', { name: '进入', exact: true }).click()
     await page.getByRole('button', { name: '执行机构', exact: true }).click()
@@ -167,7 +167,7 @@ class Serial:
     await expect(mainMotor).toBeEnabled()
     await mainMotor.click()
     await expect(mainMotor).toBeChecked()
-    await page.evaluate(() => window.labDesktop!.loginDeviceDebug('test-engineer', 'jog-ui-tests-only'))
+    await page.evaluate(() => window.labDesktop!.loginDeviceDebug('jog-ui-tests-only'))
     const beforeExpiry = (await readFile(journal, 'utf8')).trim().split('\n').length
     await app.evaluate(() => {
       const now = performance.now.bind(performance)
