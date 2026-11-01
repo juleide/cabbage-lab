@@ -6,7 +6,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 from pathlib import Path
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'backend' / 'src'))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'backend' / 'src'))
 from lab_controller.storage.hardware import HardwareStore, defaults, validate, validate_motor_operation, MAX_MOTOR_RUN_MS
 
 
@@ -242,7 +242,7 @@ class HardwareTests(unittest.TestCase):
             self.assertEqual(safety.value['hardwareVersion'], hardware_version(old))
 
     def test_example_matches_current_defaults(self):
-        path = Path(__file__).resolve().parents[1] / 'docs' / 'examples' / 'hardware.v2.example.json'
+        path = Path(__file__).resolve().parents[2] / 'docs' / 'examples' / 'hardware.v2.example.json'
         self.assertEqual(json.loads(path.read_text()), defaults())
 
     def test_draft_and_complete(self):

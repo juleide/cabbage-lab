@@ -181,8 +181,7 @@
   font-weight: 500;
 }
 
-.settings-fields input,
-.settings-fields select {
+.settings-fields input {
   width: 100%;
   min-height: 46px;
   padding: 0 13px;
@@ -194,8 +193,7 @@
   font-weight: 400;
 }
 
-.settings-fields input:focus-visible,
-.settings-fields select:focus-visible {
+.settings-fields input:focus-visible {
   border-color: var(--green);
   outline: 2px solid var(--green);
   outline-offset: 2px;

@@ -163,30 +163,3 @@ export interface MotorControlStatus extends Omit<MotionStatus, 'motionAllowed' |
     speed?: { rpm: number; raw: number; receivedAt: number; ageMs: number; quality: 'valid' | 'stale' }
   }>>
 }
-
-function finite(value: number) {
-  if (!Number.isFinite(value)) throw new Error('设备数据不是有效数值')
-  return value
-}
-export function displacementAddress(config: HardwareConfig['displacement']) {
-  if (!['p', 'g'].includes(config.model) || !Number.isInteger(config.channel) || config.channel < 1 || config.channel > 3 || (config.model === 'p' && config.channel !== 1)) throw new Error('模块类型或通道无效')
-  return config.model === 'p' ? (config.reading === 'raw' ? 0 : 2) : (config.reading === 'raw' ? config.channel - 1 : 6 + (config.channel - 1) * 2)
-}
-export function convertDisplacement(raw: number, config: HardwareConfig['displacement']) {
-  finite(raw)
-  if (config.reading === 'float') return raw
-  const { rawMin, rawMax, lower, upper } = config
-  if ([rawMin, rawMax, lower, upper].some(x => x === null || !Number.isFinite(x)) || rawMax! <= rawMin! || upper! <= lower!) throw new Error('位移换算范围无效')
-  if (raw < rawMin! || raw > rawMax!) throw new Error('位移原始值超出配置范围')
-  return lower! + (raw - rawMin!) / (rawMax! - rawMin!) * (upper! - lower!)
-}
-export function decodeTension(low: number, high: number, decimals: number) {
-  if (![low, high].every(x => Number.isInteger(x) && x >= 0 && x <= 65535) || !Number.isInteger(decimals) || decimals < 0 || decimals > 9) throw new Error('拉力数据或小数位无效')
-  return ((high << 16) | low) / 10 ** decimals
-}
-export function decodeDisplacementFloat(high: number, low: number) {
-  if (![high, low].every(x => Number.isInteger(x) && x >= 0 && x <= 65535)) throw new Error('位移寄存器无效')
-  const view = new DataView(new ArrayBuffer(4))
-  view.setUint16(0, high); view.setUint16(2, low)
-  return finite(view.getFloat32(0))
-}

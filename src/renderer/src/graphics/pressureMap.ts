@@ -3,7 +3,6 @@ import { DEFAULT_DISPLAY_RANGE } from '../../../shared/display.ts'
 
 import { PRESSURE_PALETTE as PALETTE } from './palette.ts'
 export const GRID_SIZE = 64
-export const SIMULATION_MAX = 4095
 
 export function pressureColor(value: number, range: DisplayRange = DEFAULT_DISPLAY_RANGE): number[] {
   const key = Math.max(0, Math.min(1, (value - range.minimum) / (range.maximum - range.minimum))) * (PALETTE.length - 1)

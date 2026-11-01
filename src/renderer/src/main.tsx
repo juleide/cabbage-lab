@@ -10,7 +10,6 @@ import './styles/metrics.css'
 import './styles/pressure-map.css'
 import './styles/data-actions.css'
 import './styles/overlays.css'
-import './styles/theme-picker.css'
 import './styles/themes.css'
 
 createRoot(document.getElementById('root')!).render(<StrictMode><App /></StrictMode>)

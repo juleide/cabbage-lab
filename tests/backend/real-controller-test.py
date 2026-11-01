@@ -7,7 +7,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'backend' / 'src'))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'backend' / 'src'))
 from lab_controller.core.controller import Controller
 from lab_controller.devices.readings import RealReadings
 

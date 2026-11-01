@@ -13,7 +13,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'backend' / 'src'))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'backend' / 'src'))
 from lab_controller.devices.modbus import ReadOnlyBus, crc16, frame, open_serial
 from lab_controller.devices.verification import VerificationManager, probe
 from lab_controller.storage.hardware import defaults
@@ -237,7 +237,7 @@ sys.path.insert(0, sys.argv.pop(1))
 from lab_controller.__main__ import main
 main()
 '''
-        backend = str(Path(__file__).resolve().parent.parent / 'backend' / 'src')
+        backend = str(Path(__file__).resolve().parents[2] / 'backend' / 'src')
         with tempfile.TemporaryDirectory() as directory:
             child = subprocess.Popen([sys.executable, '-c', source, backend, '--data-dir', directory],
                                      stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,

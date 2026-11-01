@@ -13,7 +13,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'backend' / 'src'))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'backend' / 'src'))
 from lab_controller.core.controller import Controller
 from lab_controller.devices.modbus import frame
 from lab_controller.devices.motion import MotionManager, MotionSession, write_motor_stop
@@ -663,7 +663,7 @@ sys.path.insert(0, sys.argv.pop(1))
 from lab_controller.__main__ import main
 main()
 '''
-        backend = str(Path(__file__).resolve().parents[1] / 'backend' / 'src')
+        backend = str(Path(__file__).resolve().parents[2] / 'backend' / 'src')
         with tempfile.TemporaryDirectory() as directory:
             child = subprocess.Popen([sys.executable, '-c', source, backend, '--data-dir', directory],
                                      stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,

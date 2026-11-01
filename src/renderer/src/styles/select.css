@@ -1,0 +1,95 @@
+.app-select {
+  position: relative;
+  display: block;
+  width: 100%;
+  min-width: 0;
+}
+
+.app-select__control {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  height: 44px;
+  padding: 0 36px 0 12px;
+  appearance: none;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--bg);
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 400;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  transition: border-color .15s;
+}
+
+.app-select--compact > .app-select__control {
+  height: 38px;
+  background: var(--surface);
+  font-size: 12px;
+}
+
+.app-select--icon > .app-select__control {
+  padding-left: 36px;
+}
+
+.app-select__control:hover:not(:disabled) {
+  border-color: var(--muted);
+}
+
+.app-select__control:focus-visible {
+  border-color: var(--green);
+  outline: 2px solid var(--green);
+  outline-offset: 2px;
+}
+
+/* :disabled also matches native fieldset inheritance, without React state. */
+.app-select__control:disabled {
+  opacity: .45;
+  cursor: not-allowed;
+}
+
+.app-select__icon,
+.app-select__chevron {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--muted);
+  pointer-events: none;
+}
+
+.app-select__icon {
+  left: 12px;
+  display: flex;
+  align-items: center;
+  width: 16px;
+  height: 16px;
+}
+
+.app-select__icon > svg {
+  width: 100%;
+  height: 100%;
+}
+
+.app-select__chevron {
+  right: 12px;
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.app-select__control:focus-visible ~ .app-select__icon,
+.app-select__control:focus-visible ~ .app-select__chevron {
+  color: var(--green);
+}
+
+.app-select__control:disabled ~ .app-select__icon,
+.app-select__control:disabled ~ .app-select__chevron {
+  opacity: .45;
+}

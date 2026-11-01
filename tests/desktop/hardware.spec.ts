@@ -76,7 +76,7 @@ test('read-only verification shows asynchronous success, failure and cancellatio
       let result = { state: 'idle', sessionId: '', section: 'tension', message: '', readings: null as Record<string, number> | null }
       ipcMain.removeHandler('controller:request')
       ipcMain.handle('controller:request', (_event, method, params) => {
-        if (method === 'hardware.sensors.status') return {}
+        if (method === 'hardware.sensors.status' || method === 'hardware.motion.status') return {}
         if (method === 'hardware.verify') {
           if (params.section !== 'tension') throw new Error('Unexpected scope')
           attempt++; polls = 0
@@ -96,7 +96,7 @@ test('read-only verification shows asynchronous success, failure and cancellatio
     await expect(page.getByRole('button', { name: '取消验证', exact: true })).toBeVisible()
     await expect(page.getByLabel('串口', { exact: true })).toBeDisabled()
     await expect(page.getByRole('status').filter({ hasText: '只读通信验证通过' })).toBeVisible()
-    await expect(page.getByText(/本次读取：.*1234/)).toBeVisible()
+    await expect(page.getByText('仅为一次性诊断，非持续连接或实时采样；验证通过不代表设备允许运动。', { exact: true })).toBeVisible()
     await expect(page.getByText('真实硬件连接', { exact: true })).toBeVisible()
     await page.screenshot({ path: '/tmp/cabbage-hardware-verification.png', fullPage: true })
     await verify.click()
@@ -148,8 +148,8 @@ test('hardware draft persistence, bindings, module selection and unsaved navigat
     await page.getByLabel('连接方式').selectOption('serial')
     await page.getByLabel('串口', { exact: true }).nth(0).fill('COM3')
     await page.getByLabel('串口', { exact: true }).nth(1).fill('com3')
-    await page.getByLabel('波特率', { exact: true }).nth(0).fill('115200')
-    await page.getByLabel('波特率', { exact: true }).nth(1).fill('115200')
+    await page.getByLabel('波特率', { exact: true }).nth(0).selectOption('115200')
+    await page.getByLabel('波特率', { exact: true }).nth(1).selectOption('115200')
     await page.getByRole('button', { name: '检查电子皮肤配置', exact: true }).click()
     await expect(page.getByRole('status').filter({ hasText: '已用于' })).toBeVisible()
     await page.getByLabel('串口', { exact: true }).nth(1).fill('COM4')

@@ -3,7 +3,7 @@ import sys
 import unittest
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'backend' / 'src'))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'backend' / 'src'))
 from lab_controller.devices.modbus import frame
 from lab_controller.devices.motion_protocol import (
     LiftFeedbackParser, lift_stop_request, motor_status, motor_stop_ack,

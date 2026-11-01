@@ -11,7 +11,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'backend' / 'src'))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'backend' / 'src'))
 from lab_controller.devices.modbus import frame
 from lab_controller.devices.motor_protocol import jog_setup, jog_trigger, jog_ack, motor_speed
 from lab_controller.storage.hardware import motor_operation

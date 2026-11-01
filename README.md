@@ -68,7 +68,7 @@ python3 -m pip install -r backend/requirements.txt
 - 验证通过仅证明本次响应符合预期，不证明型号、标定、机械安全或允许运动；结果不是实时测量值。
 - 升降和电子皮肤暂不支持此项验证；真实运动和 USB SDK 接入尚待后续阶段。
 
-开发回归测试：`python3 scripts/hardware-verification-test.py`。测试使用模拟串口及隔离子进程，不访问真实设备。
+开发回归测试：`python3 tests/backend/hardware-verification-test.py`。测试使用模拟串口及隔离子进程，不访问真实设备。
 
 ### 拉力与位移持续采集
 
@@ -88,7 +88,7 @@ python3 -m pip install -r backend/requirements.txt
 
 当前提供的是独立传感器采集，不是整机真实试验模式；没有把拉力默认映射为摩擦力/法向力，也没有用位移推算速度或伪造真实云图。整机测量映射、同步计算、真实试验流程和专用导出仍需后续实现。
 
-回归测试：`python3 scripts/hardware-sensors-test.py`。实际使用前需安装 `backend/requirements.txt`，现阶段自动化测试不访问真实硬件。
+回归测试：`python3 tests/backend/hardware-sensors-test.py`。实际使用前需安装 `backend/requirements.txt`，现阶段自动化测试不访问真实硬件。
 
 ### 执行机构状态与停止诊断（D2，禁止真实启动）
 
@@ -105,7 +105,7 @@ python3 -m pip install -r backend/requirements.txt
 
 本诊断会话仍禁止启动、使能、释放、回零、上升、下降、目标定位和任意寄存器写入；独立电机控制会话见后文。系统驱动阻塞、适配器故障或进程被强杀时，软件无法保证停止送达，必须配置独立硬接线急停。实际设备尚未验收。
 
-回归测试：`python3 scripts/motion-protocol-test.py`、`python3 scripts/hardware-motion-test.py`、`pnpm exec playwright test tests/desktop/motion.spec.ts`。后续运动参数及机械安全确认项见实施计划 D2 记录。
+回归测试：`python3 tests/backend/motion-protocol-test.py`、`python3 tests/backend/hardware-motion-test.py`、`pnpm exec playwright test tests/desktop/connection-safety.spec.ts`。后续运动参数及机械安全确认项见实施计划 D2 记录。
 
 ### 运动安全草稿与离线规划（D3，不授权执行）
 
@@ -117,7 +117,7 @@ python3 -m pip install -r backend/requirements.txt
 - 新增时长/反馈/停止等待字段目前是规划草稿，不替代 D2 诊断策略，也不代表已实现运行看门狗。
 - 保存有版本冲突检查及活动设备互锁；未保存草稿、配置变更和外部文件修改会限制新计算，已有停止入口不依赖草稿完整性。
 
-空白示例：`docs/examples/motion-safety.example.json`。字段说明、手动修改流程及现场核验清单见 `docs/008.运动安全配置与现场核验清单.md`。测试：`python3 scripts/motion-safety-test.py`。
+空白示例：`docs/examples/motion-safety.example.json`。字段说明、手动修改流程及现场核验清单见 `docs/008.运动安全配置与现场核验清单.md`。测试：`python3 tests/backend/motion-safety-test.py`。
 
 ### 电机原始位置反馈（D4a，只读）
 
@@ -359,6 +359,71 @@ CSV 采用 UTF-8 BOM 编码，包含时间、六项基础参数以及派生的�
 - “设置 → 运行与诊断”展示采集帧率、界面接收帧率、最近完整帧、有效帧及错误计数、修正状态。未标定的阵列数值不表示实际压力或力。
 
 完整方案见 [实施计划](docs/云图处理与交互增强实施计划.md)，实现约定见 [云图处理与交互增强实施说明](docs/云图处理与交互增强实施说明.md)。本轮没有增加阵列历史存储，现有标量 SQLite 记录和 CSV 格式保持不变。
+
+## 无引用代码与旧测试清理
+
+已移除不再挂载的旧主题下拉框、独立运动诊断、运动安全规划、独立电机控制和传感器采集面板，以及只服务这些面板的 hook、前端类型和样式。当前主题卡片、设备配置、连接状态、首页电机和工程模式入口保持不变。
+
+旧面板对应的 `motion.spec.ts`、`motor-control.spec.ts`、`motor-config.spec.ts`、`safety.spec.ts`、`sensors.spec.ts` 已移除，不能再将其作为当前页面回归入口。其中跨 Electron IPC 的联锁/锁定停止断言迁移到 `tests/desktop/connection-safety.spec.ts`，不依赖旧面板；配置迁移、驱动保护、传感器采集及安全规划仍由现有 Python 测试覆盖。`hardware.spec.ts` 保留并适配当前连接状态轮询与只读验证提示。
+
+`src/shared/hardware.ts` 仅保留当前使用的类型；移除了仅由测试调用的重复 TypeScript 解析函数及 `tests/unit/hardware.test.mjs`。真实硬件解析仍在 Python 控制端执行。
+
+下文涉及独立诊断、独立采集或运动安全面板的历史说明不表示当前提供这些界面。后端能力、安全保护、协议测试与离线夹具继续保留，不能因界面撤下而删除。阵列占位线程和 CSV 固定比例导出问题本轮未改，见 [清理与验证记录](docs/018.无引用代码与旧测试清理记录.md)。
+
+### 后端测试目录与运行
+
+后端测试统一放在 `tests/backend/`，`scripts/` 根目录只保留 9 个构建/检查/维护脚本。`scripts/fixtures/array_packets.py` 继续供 `controller-smoke.py` 使用，不随本次移动。
+
+```text
+scripts/             构建、打包、图标维护及源码通信检查
+  fixtures/          源码通信检查使用的离线阵列夹具
+tests/backend/       Python 驱动、协议、配置及控制器测试（12 个文件）
+tests/desktop/       Electron 桌面与 IPC 测试
+tests/unit/          Node.js 单元测试
+```
+
+在项目根目录单独运行一个后端测试，例如：
+
+```sh
+.venv/bin/python tests/backend/connection-lifecycle-test.py
+```
+
+运行全部后端测试（使用已准备好的项目虚拟环境，任何文件失败即停止）：
+
+```sh
+# macOS / Linux；子 shell 失败不会退出当前交互终端
+(
+  for file in tests/backend/*-test.py; do
+    .venv/bin/python "$file" || exit "$?"
+  done
+)
+```
+
+```powershell
+# Windows PowerShell
+Get-ChildItem tests/backend/*-test.py | Sort-Object Name | ForEach-Object {
+    & .\.venv\Scripts\python.exe $_.FullName
+    if ($LASTEXITCODE -ne 0) { throw "后端测试失败：$($_.Name)" }
+}
+```
+
+当前文件保留 `*-test.py` 命名，以上命令直接执行各文件，不依赖默认 unittest discovery。迁移同时修正源码路径、示例配置路径与子进程路径，测试间的假串口夹具仍从同目录加载。`pnpm backend:check` 及安装包构建命令保持不变。
+
+## 通用下拉框组件
+
+首页、设备连接及试验设置页的固定选项下拉框统一使用 `src/renderer/src/components/Select.tsx`，样式位于 `styles/select.css`。组件沿用首页的圆角边框、自定义箭头及主题变量；支持 `sizeVariant="regular"`（44px，默认）、`sizeVariant="compact"`（38px）和可选前置 `icon`。
+
+组件内部仍是真实 `<select>`，`value`、`onChange`、`disabled`、`required`、`name`、ARIA 属性、`ref` 等传给原生控件；继续支持外部 label、fieldset 禁用、原生表单校验和 Playwright `selectOption()`。`className` 作用于内部 select，业务代码仍自行处理字符串/数字转换与空选项。
+
+```tsx
+<Select sizeVariant="compact" aria-label="串口格式" value={format}
+  onChange={event => setFormat(event.currentTarget.value)}>
+  <option value="8N1">8N1</option>
+  <option value="8N2">8N2</option>
+</Select>
+```
+
+波特率统一使用下拉框：所有设备（包括电机）共用 1200/2400/4800/9600/19200/38400/115200 七个常用档位；保留原默认值、空值及已有非标准值，不自动选择首项。统一选项不改变后台协议限制：电机仍仅接受 9600/19200/38400/115200，选择其他档位会被现有校验拒绝。显示单位等仍允许自由输入的 `input + datalist` 保留原行为。展开选项列表仍由操作系统/Chromium 绘制，本次统一的是控件外观，不是自定义弹层。主题及实机验收见 [通用下拉框实施与验证记录](docs/019.通用下拉框实施与验证记录.md)。
 
 ## 工程模式与设备连接入口
 

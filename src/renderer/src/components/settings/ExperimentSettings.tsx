@@ -1,3 +1,4 @@
+import { Select } from '../Select'
 import type { LabConfig } from '../../../../shared/controller'
 
 interface Props {
@@ -30,10 +31,10 @@ export function ExperimentSettings({ draft, disabled, saving, error, onChange, o
                 onChange={event => onChange({ ...draft, recordPrefix: event.currentTarget.value })} />
             </label>
             <label>默认记录库
-              <select value={draft.defaultLibrary} onChange={event => onChange({ ...draft, defaultLibrary: event.currentTarget.value as LabConfig['defaultLibrary'] })}>
+              <Select value={draft.defaultLibrary} onChange={event => onChange({ ...draft, defaultLibrary: event.currentTarget.value as LabConfig['defaultLibrary'] })}>
                 <option value="cabbage_test_2026">当前记录库</option>
                 <option value="cabbage_test_archive">归档记录库</option>
-              </select>
+              </Select>
             </label>
           </div>
           <button className="btn primary" type="submit">{saving ? '正在保存…' : '保存并生效'}</button>

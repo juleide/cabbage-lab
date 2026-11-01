@@ -7,7 +7,7 @@ import time
 import unittest
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'backend' / 'src'))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'backend' / 'src'))
 from lab_controller.core.controller import Controller
 from lab_controller.devices.modbus import frame
 from lab_controller.devices.sensors import SensorSession, SensorManager

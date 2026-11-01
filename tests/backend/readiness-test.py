@@ -2,7 +2,7 @@
 import sys
 import unittest
 from pathlib import Path
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'backend' / 'src'))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'backend' / 'src'))
 from lab_controller.devices.readiness import assess, REQUIRED
 
 

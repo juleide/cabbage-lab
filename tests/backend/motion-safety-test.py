@@ -8,7 +8,7 @@ from datetime import date, timedelta
 from pathlib import Path
 from unittest.mock import patch
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'backend' / 'src'))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'backend' / 'src'))
 from lab_controller.core.controller import Controller
 from lab_controller.devices.motion_safety import assess, preview
 from lab_controller.storage.hardware import defaults as hardware_defaults
@@ -247,7 +247,7 @@ class SafetyTests(unittest.TestCase):
                     store.save(profile(), store.version)
                 self.assertEqual(path.read_text(), raw)
 
-    def test_controller_save_preview_and_restart_do_not_open_ports(self):
+    def test_controller_save_preview_and_profile_restore_do_not_open_ports(self):
         with tempfile.TemporaryDirectory() as root:
             controller = Controller(Path(root), lambda *args: None)
             def forbidden(settings):
@@ -270,12 +270,11 @@ class SafetyTests(unittest.TestCase):
                 self.assertTrue(any('不执行' in log['message'] for log in controller.records.logs()))
             finally:
                 controller.close()
-            restarted = Controller(Path(root), lambda *args: None)
-            try:
-                self.assertEqual(restarted.request('hardware.safety.get', {})['config'], profile())
-                self.assertFalse(restarted.motion.active())
-            finally:
-                restarted.close()
+            # Restore the safety store only: restarting Controller intentionally
+            # auto-connects saved hardware, independently of this offline draft.
+            restored = MotionSafetyStore(Path(root) / 'config' / 'motion-safety.json')
+            self.assertIsNone(restored.error)
+            self.assertEqual(restored.value, profile())
 
     def test_controller_interlocks_and_rebinding_are_explicit(self):
         with tempfile.TemporaryDirectory() as root:
