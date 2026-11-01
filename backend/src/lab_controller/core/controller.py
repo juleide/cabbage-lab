@@ -7,6 +7,7 @@ from datetime import datetime
 from ..array.acquisition import ArrayAcquisition
 from ..devices.simulated import DEVICE_NAMES, SimulatedDevice
 from ..devices.ports import list_ports
+from ..devices.verification import VerificationManager, SUPPORTED
 from ..storage.config import ConfigStore, LIBRARIES
 from ..storage.records import RecordStore
 from ..storage.hardware import HardwareStore, validate as validate_hardware
@@ -26,6 +27,7 @@ class Controller:
         self.emit = emit
         self.config = ConfigStore(root / 'config' / 'controller.json')
         self.hardware = HardwareStore(root / 'config' / 'hardware.json')
+        self.verification = VerificationManager()
         self.records = RecordStore(root / 'data' / 'experiments.sqlite3')
         self.device = SimulatedDevice()
         self.state = {
@@ -79,6 +81,7 @@ class Controller:
         self.state['sampleCount'] = runs[0]['sampleCount'] if runs else 0
 
     def stop(self, reason, emergency=False):
+        self.verification.cancel()
         self.device.stop()
         if self.state['running']:
             self.records.finish(self.state['runId'], now(), 'emergency' if emergency else 'stopped')
@@ -118,6 +121,8 @@ class Controller:
         kind = command['type']
         expected = {'toggle': {'type', 'device'}, 'pressure': {'type', 'value'}, 'database': {'type', 'value'}}
         require(set(command) == expected.get(kind, {'type'}), '控制命令参数错误')
+        if kind not in ('emergency', 'stop'):
+            require(not self.verification.active(), '只读验证期间不能操作设备，请等待或取消验证')
         if kind == 'emergency':
             if not self.state['stopped']:
                 self.stop('紧急停止：全部模拟执行机构停止，控制操作已锁定', emergency=True)
@@ -190,6 +195,24 @@ class Controller:
         if method == 'hardware.ports.list':
             require(not params, '该请求不接受参数')
             return list_ports()
+        if method == 'hardware.status':
+            require(not params, '该请求不接受参数')
+            return self.verification.snapshot()
+        if method == 'hardware.verify.cancel':
+            require(not params, '该请求不接受参数')
+            return self.verification.cancel()
+        if method == 'hardware.verify':
+            require(set(params) == {'section'} and params['section'] in SUPPORTED,
+                    '请选择电机、拉力或位移分类进行只读验证；升降及电子皮肤尚不支持')
+            self.idle()
+            require(not self.hardware.error, self.hardware.error or '')
+            section = params['section']
+            errors = validate_hardware(self.hardware.value, complete=True, section=section)
+            require(not errors, '；'.join(errors))
+            config = self.hardware.value[section]
+            stations = [config['motor1'], config['motor2']] if section == 'motors' else [config['station']]
+            require(all(1 <= station <= 247 for station in stations), '只读验证仅支持站号 1～247，不使用特殊地址探测')
+            return self.verification.start(section, config)
         if method == 'state.get':
             return self.snapshot()
         if method == 'device.command':
@@ -218,11 +241,13 @@ class Controller:
             return self.array.status()
         if method == 'hardware.get':
             return {'config': copy.deepcopy(self.hardware.value), 'error': self.hardware.error,
-                    'drivers': {'available': False, 'message': '当前版本未接入真实串口及 USB 驱动；配置可保存，不影响模拟试验。'}}
+                    'drivers': {'available': False, 'message': '当前试验仍使用模拟设备；已支持 Modbus 只读验证，尚未开放真实运动及 USB 采集。'}}
         if method == 'hardware.save':
             self.idle()
+            require(not self.verification.active(), '验证期间不能修改设备配置')
             require(set(params) == {'config'}, '设备配置参数错误')
             result = self.hardware.save(params['config'])
+            self.verification.invalidate()
             self.log('设备连接草稿已保存，未连接真实硬件')
             return result
         if method == 'hardware.check':
@@ -266,6 +291,9 @@ class Controller:
             self.stop('控制端关闭：停止试验和全部模拟执行机构')
         finally:
             try:
-                self.array.close()
+                self.verification.close()
             finally:
-                self.records.close()
+                try:
+                    self.array.close()
+                finally:
+                    self.records.close()

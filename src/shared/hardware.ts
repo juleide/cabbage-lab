@@ -27,6 +27,17 @@ export interface SerialPortInfo {
   location: string | null
 }
 export interface SerialPortScan { ports: SerialPortInfo[] }
+export interface HardwareVerification {
+  state: 'idle' | 'checking' | 'passed' | 'failed' | 'cancelled'
+  sessionId: string | null
+  section: HardwareSection | null
+  message: string
+  port?: string
+  startedAt?: number
+  finishedAt?: number
+  readings: Record<string, unknown> | null
+  phase?: 'opening' | 'reading' | 'closed'
+}
 export type HardwareSection = 'motors' | 'lift' | 'array' | 'tension' | 'displacement'
 
 function finite(value: number) {

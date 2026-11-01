@@ -15,7 +15,7 @@ async function login(page: Page, password = 'auth-desktop-tests-only') {
   await page.getByRole('button', { name: '进入', exact: true }).click()
 }
 async function denied(page: Page) {
-  for (const method of ['hardware.get', 'hardware.save', 'hardware.check']) {
+  for (const method of ['hardware.get', 'hardware.save', 'hardware.check', 'hardware.ports.list', 'hardware.status', 'hardware.verify', 'hardware.verify.cancel']) {
     const result = await page.evaluate(async method => {
       try { await window.labDesktop!.request(method as any, {}); return 'unexpected-success' }
       catch (error) { return (error as Error).message }

@@ -5,12 +5,18 @@ import { join } from 'node:path'
 
 test('Python-backed desktop and settings', async () => {
   const data = await mkdtemp(join(tmpdir(), 'lab-desktop-'))
-  const app = await electron.launch({ args: ['.'], env: { ...process.env, LAB_DATA_DIR: data } })
+  const app = await electron.launch({ args: ['.', `--user-data-dir=${join(data, 'ui')}`], env: { ...process.env, LAB_DATA_DIR: data } })
   try {
     const page = await app.firstWindow()
     await expect(page.getByText('设备已就绪', { exact: true })).toBeVisible()
     expect(await page.evaluate(() => typeof (window as any).require)).toBe('undefined')
-    await page.keyboard.press('F12')
+    await app.evaluate(({ BrowserWindow }) => {
+      const window = BrowserWindow.getAllWindows()[0]
+      window.focus()
+      window.webContents.focus()
+      window.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'F12' })
+      window.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'F12' })
+    })
     await expect.poll(() => app.evaluate(({ BrowserWindow }) =>
       BrowserWindow.getAllWindows().some(window => window.webContents.isDevToolsOpened())
     )).toBe(true)

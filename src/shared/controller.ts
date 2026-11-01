@@ -104,8 +104,8 @@ export type DeviceCommand =
   | { type: 'pressure'; value: number }
   | { type: 'database'; value: string }
 
-export type ControllerMethod = 'hardware.ports.list' | 'hardware.get' | 'hardware.save' | 'hardware.check' | 'state.get' | 'device.command' | 'config.get' | 'config.update' | 'logs.list' | 'records.list' | 'pressure.mode' | 'pressure.status' | 'pressure.zero.start' | 'pressure.zero.clear'
-export const rendererMethods: readonly string[] = ['hardware.ports.list', 'hardware.get', 'hardware.save', 'hardware.check', 'state.get', 'device.command', 'config.get', 'config.update', 'logs.list', 'records.list', 'pressure.mode', 'pressure.status', 'pressure.zero.start', 'pressure.zero.clear']
+export type ControllerMethod = 'hardware.status' | 'hardware.verify' | 'hardware.verify.cancel' | 'hardware.ports.list' | 'hardware.get' | 'hardware.save' | 'hardware.check' | 'state.get' | 'device.command' | 'config.get' | 'config.update' | 'logs.list' | 'records.list' | 'pressure.mode' | 'pressure.status' | 'pressure.zero.start' | 'pressure.zero.clear'
+export const rendererMethods: readonly string[] = ['hardware.status', 'hardware.verify', 'hardware.verify.cancel', 'hardware.ports.list', 'hardware.get', 'hardware.save', 'hardware.check', 'state.get', 'device.command', 'config.get', 'config.update', 'logs.list', 'records.list', 'pressure.mode', 'pressure.status', 'pressure.zero.start', 'pressure.zero.clear']
 
 export type ControllerEvent =
   | { event: 'pressure.frame'; data: PressureFrame }

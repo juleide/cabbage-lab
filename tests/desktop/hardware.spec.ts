@@ -25,6 +25,7 @@ test('serial scan presents ports, preserves drafts and distinguishes empty and f
       let count = 0
       ipcMain.removeHandler('controller:request')
       ipcMain.handle('controller:request', (_event, method) => {
+        if (method === 'hardware.status') return { state: 'idle', sessionId: null, section: null, message: '', readings: null }
         if (method !== 'hardware.ports.list') throw new Error('Unexpected test request')
         count++
         if (count === 3) throw new Error('串口扫描不可用：缺少依赖')
@@ -46,6 +47,65 @@ test('serial scan presents ports, preserves drafts and distinguishes empty and f
   } finally {
     await app.evaluate(({ BrowserWindow }) => { for (const window of BrowserWindow.getAllWindows()) window.destroy() }).catch(() => {})
     await app.close()
+    await rm(data, { recursive: true, force: true })
+  }
+})
+
+test('read-only verification shows asynchronous success, failure and cancellation without enabling real control', async () => {
+  const data = await mkdtemp(join(tmpdir(), 'lab-verification-'))
+  const app = await electron.launch({ args: ['.', `--user-data-dir=${join(data, 'ui')}`], env: { ...process.env, LAB_DATA_DIR: data, LAB_DEVICE_DEBUG_USERNAME: 'test-engineer', LAB_DEVICE_DEBUG_PASSWORD: 'hardware-tests-only' } })
+  try {
+    const page = await app.firstWindow()
+    page.on('dialog', dialog => { void dialog.accept() })
+    await expect(page.getByText('设备已就绪', { exact: true })).toBeVisible()
+    await page.getByRole('button', { name: '设置', exact: true }).click()
+    await page.getByRole('button', { name: '设备连接', exact: true }).click()
+    await unlock(page)
+    await page.getByRole('button', { name: '拉力与位移', exact: true }).click()
+    await page.getByLabel('串口', { exact: true }).fill('TEST')
+    await page.getByLabel('实际站号', { exact: true }).fill('1')
+    await expect(page.getByRole('button', { name: '连接验证', exact: true })).toBeDisabled()
+    await page.getByRole('button', { name: '保存草稿', exact: true }).click()
+    await expect(page.getByText('草稿已保存', { exact: true })).toBeVisible()
+    await page.getByRole('button', { name: '检查拉力配置', exact: true }).click()
+    await expect(page.getByRole('status').filter({ hasText: '配置检查通过' })).toBeVisible()
+    await app.evaluate(({ ipcMain }) => {
+      let attempt = 0
+      let polls = 0
+      let result = { state: 'idle', sessionId: '', section: 'tension', message: '', readings: null as Record<string, number> | null }
+      ipcMain.removeHandler('controller:request')
+      ipcMain.handle('controller:request', (_event, method, params) => {
+        if (method === 'hardware.verify') {
+          if (params.section !== 'tension') throw new Error('Unexpected scope')
+          attempt++; polls = 0
+          result = { state: 'checking', sessionId: String(attempt), section: 'tension', message: '正在验证', readings: null }
+        } else if (method === 'hardware.verify.cancel') {
+          result = { ...result, state: 'cancelled', message: '验证已取消' }
+        } else if (method === 'hardware.status') {
+          if (result.state === 'checking' && ++polls >= 3 && attempt < 3) {
+            result = { ...result, state: attempt === 1 ? 'passed' : 'failed', message: attempt === 1 ? '只读通信验证通过；端口已释放' : '验证失败：响应超时', readings: attempt === 1 ? { raw: 1234, value: 1234 } : null }
+          }
+        } else throw new Error('Unexpected test request')
+        return result
+      })
+    })
+    const verify = page.getByRole('button', { name: '连接验证', exact: true })
+    await verify.click()
+    await expect(page.getByRole('button', { name: '取消验证', exact: true })).toBeVisible()
+    await expect(page.getByLabel('串口', { exact: true })).toBeDisabled()
+    await expect(page.getByRole('status').filter({ hasText: '只读通信验证通过' })).toBeVisible()
+    await expect(page.getByText(/本次读取：.*1234/)).toBeVisible()
+    await expect(page.getByText('模拟试验 · 支持只读验证', { exact: true })).toBeVisible()
+    await page.screenshot({ path: '/tmp/cabbage-hardware-verification.png', fullPage: true })
+    await verify.click()
+    await expect(page.getByRole('status').filter({ hasText: '验证失败：响应超时' })).toBeVisible()
+    await verify.click()
+    await page.getByRole('button', { name: '取消验证', exact: true }).click()
+    await expect(page.getByRole('status').filter({ hasText: '验证已取消' })).toBeVisible()
+    await expect(page.getByLabel('串口', { exact: true })).toBeEnabled()
+  } finally {
+    await app.evaluate(({ BrowserWindow }) => { for (const window of BrowserWindow.getAllWindows()) window.destroy() }).catch(() => {})
+    await app.close().catch(() => {})
     await rm(data, { recursive: true, force: true })
   }
 })
@@ -81,8 +141,8 @@ test('hardware draft persistence, bindings, module selection and unsaved navigat
     await expect.poll(async () => JSON.parse(await readFile(join(data, 'config', 'hardware.json'), 'utf8')).array.press.rev).toBe(2)
     await page.getByRole('button', { name: '检查电子皮肤配置', exact: true }).click()
     await expect(page.getByRole('status').filter({ hasText: '配置检查通过' })).toBeVisible()
-    await page.getByRole('button', { name: '连接验证', exact: true }).click()
-    await expect(page.getByText(/当前版本未接入真实串口及 USB 驱动/).first()).toBeVisible()
+    await expect(page.getByRole('button', { name: '连接验证', exact: true })).toBeDisabled()
+    await expect(page.getByText(/当前试验仍使用模拟设备/).first()).toBeVisible()
     await page.getByLabel('连接方式').selectOption('serial')
     await page.getByLabel('串口', { exact: true }).nth(0).fill('COM3')
     await page.getByLabel('串口', { exact: true }).nth(1).fill('com3')

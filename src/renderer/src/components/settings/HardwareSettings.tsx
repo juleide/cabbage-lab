@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { useController } from '../../hooks/useController'
-import type { HardwareConfig, HardwareSnapshot, HardwareCheck, HardwareSection, SerialSettings, SerialPortInfo, SerialPortScan } from '../../../../shared/hardware'
+import type { HardwareConfig, HardwareSnapshot, HardwareCheck, HardwareSection, SerialSettings, SerialPortInfo, SerialPortScan, HardwareVerification } from '../../../../shared/hardware'
 import '../../styles/hardware.css'
 
 type Tab = 'overview' | 'actuators' | 'array' | 'sensors'
@@ -16,6 +16,8 @@ export function HardwareSettings({ controller, onDirtyChange, unlocked }: { unlo
   const [storeError, setStoreError] = useState('')
   const [capability, setCapability] = useState('')
   const [working, setWorking] = useState(false)
+  const [verification, setVerification] = useState<HardwareVerification | null>(null)
+  const [verificationError, setVerificationError] = useState('')
   const [ports, setPorts] = useState<SerialPortInfo[] | null>(null)
   const [scanning, setScanning] = useState(false)
   const [scanError, setScanError] = useState('')
@@ -34,6 +36,38 @@ export function HardwareSettings({ controller, onDirtyChange, unlocked }: { unlo
   dirtyRef.current = dirty
   const idle = !!state && !state.running && !Object.values(state.devices).some(Boolean)
   const scope = tab === 'actuators' ? actuator : tab === 'sensors' ? sensor : tab === 'array' ? 'array' : undefined
+  const verifying = verification?.state === 'checking'
+  const supportsVerification = scope === 'motors' || scope === 'tension' || scope === 'displacement'
+
+  useEffect(() => {
+    let live = true
+    let timer: ReturnType<typeof setTimeout> | undefined
+    if (!online || !unlocked) { setVerification(null); return }
+    async function poll() {
+      try {
+        const value = await request<HardwareVerification>('hardware.status')
+        if (!live) return
+        setVerification(value); setVerificationError('')
+        if (value.state === 'checking') timer = setTimeout(() => void poll(), 300)
+      } catch (reason) {
+        if (live) setVerificationError((reason as Error).message)
+      }
+    }
+    void poll()
+    return () => { live = false; clearTimeout(timer) }
+  }, [online, unlocked, verifying, request])
+
+  async function verify(cancel = false) {
+    if (working || !online) return
+    if (!cancel && (!scope || !supportsVerification || dirty || !idle || storeError)) return
+    if (!cancel && !window.confirm('将打开所选设备串口并发送只读查询，不发送运动指令。部分适配器打开时仍可能影响控制线；请确认现场安全。是否继续？')) return
+    setWorking(true); setVerificationError('')
+    try {
+      const value = await request<HardwareVerification>(cancel ? 'hardware.verify.cancel' : 'hardware.verify', cancel ? {} : { section: scope })
+      setVerification(value)
+    } catch (reason) { setVerificationError((reason as Error).message) }
+    finally { setWorking(false) }
+  }
 
   useEffect(() => { onDirtyChange(dirty) }, [dirty, onDirtyChange])
   useEffect(() => {
@@ -82,6 +116,7 @@ export function HardwareSettings({ controller, onDirtyChange, unlocked }: { unlo
     try {
       const value = await request<HardwareConfig>('hardware.save', { config })
       setConfig(value); setSaved(JSON.stringify(value)); notify('设备连接草稿已保存；未连接真实硬件')
+      setVerification(null)
     } catch (reason) { setResult([(reason as Error).message]) }
     finally { setWorking(false) }
   }
@@ -100,7 +135,7 @@ export function HardwareSettings({ controller, onDirtyChange, unlocked }: { unlo
     return <input type="number" value={value ?? ''} min={min} max={max} step={step} readOnly={fixed} placeholder="请填写" onChange={e => change(e.target.value === '' ? null : Number(e.target.value))} />
   }
   function serial(value: SerialSettings, change: (value: SerialSettings) => void, title: string, shared = false) {
-    return <article className="hw-box"><h4>{title}<span>未连接</span></h4><div className="hw-grid">
+    return <article className="hw-box"><h4>{title}<span>{verifying && verification.section === scope ? '只读验证中' : '未持续连接'}</span></h4><div className="hw-grid">
       <label>{shared ? '共用串口' : '串口'}<div className="hw-port"><input aria-label={shared ? '共用串口' : '串口'} value={value.port} placeholder="COM3 或 /dev/ttyUSB0" onChange={e => change({ ...value, port: e.target.value })} /><button type="button" disabled={!online || scanning} onClick={() => void scan()}>{scanning ? '扫描中…' : '扫描'}</button></div></label>
       <label>波特率<input type="number" list="hw-baud-rates" value={value.baud ?? ''} min="1" max="4000000" step="1" placeholder="选择或输入" onChange={e => change({ ...value, baud: e.target.value === '' ? null : Number(e.target.value) })} /></label>
     </div>{ports && <><label>扫描结果<select aria-label={title + '扫描结果'} value="" onChange={e => { if (e.target.value) change({ ...value, port: e.target.value }) }}><option value="">{ports.length ? '选择端口（也可手动填写）' : '未发现串口，可刷新或手动填写'}</option>{ports.map(port => <option key={port.port} value={port.port}>{port.port} · {port.description}{port.serialNumber ? ` · ${port.serialNumber}` : ''}</option>)}</select></label>{value.port.trim() && !ports.some(port => port.port === value.port.trim() || (/^com\d+$/i.test(port.port) && port.port.toUpperCase() === value.port.trim().toUpperCase())) && <p className="hw-note">所填端口不在本次扫描结果中；配置已保留，请检查连接或手动确认。</p>}</>}<details><summary>高级通信参数</summary><div className="hw-grid">
@@ -114,13 +149,13 @@ export function HardwareSettings({ controller, onDirtyChange, unlocked }: { unlo
   if (!config) return <section className="settings-card"><h3>设备连接</h3><p role="status">{loadError || (online ? '正在加载设备配置…' : '控制端离线，无法加载设备配置')}</p><button disabled={!online || working} onClick={() => void load()}>重新加载</button></section>
   const d = config.displacement
   return <section className="settings-card hardware-settings">
-    <header className="hw-heading"><div><h2>设备连接</h2><p>配置端口、设备绑定与数据解析参数</p></div><span className="hw-mode">模拟环境 · 未接入硬件</span></header>
+    <header className="hw-heading"><div><h2>设备连接</h2><p>配置端口、设备绑定与数据解析参数</p></div><span className="hw-mode">模拟试验 · 支持只读验证</span></header>
     <nav className="hw-tabs" aria-label="设备配置分类">{([['overview', '连接概览'], ['actuators', '执行机构'], ['array', '电子皮肤'], ['sensors', '拉力与位移']] as const).map(([key, label]) => <button key={key} disabled={working} aria-pressed={tab === key} className={tab === key ? 'active' : ''} onClick={() => { setTab(key); setResult(null) }}>{label}</button>)}<span>{dirty ? '未保存' : '草稿已保存'}</span></nav>
     {storeError && <p className="settings-warning" role="alert">{storeError}。为保护原文件，暂不可保存。请通过“数据与日志”打开配置目录处理后重启控制端。</p>}
     {!online && <p className="settings-warning" role="alert">控制端离线；草稿保留，恢复连接后可继续保存。</p>}
     {scanError && <p className="settings-warning" role="alert">{scanError}；可继续手动填写端口。</p>}
     {ports !== null && <p className="hw-note" role="status">扫描完成：发现 {ports.length} 个串口。仅枚举端口，未打开或验证设备；选择后需保存草稿。</p>}
-    <form ref={form} onSubmit={e => e.preventDefault()} className="hw-body"><fieldset disabled={working}>
+    <form ref={form} onSubmit={e => e.preventDefault()} className="hw-body"><fieldset disabled={working || verifying}>
       <datalist id="hw-baud-rates">{[1200, 2400, 4800, 9600, 19200, 38400, 57600, 115200, 230400, 460800, 921600].map(n => <option key={n} value={n} />)}</datalist>
       {tab === 'overview' && <><div className="hw-overview">{([['actuators', '执行机构', '2 个电机 · 1 个升降', `电机 ${config.motors.serial.port || '未配置'} · 升降 ${config.lift.serial.port || '未配置'}`], ['array', '电子皮肤', '按压 / 抓取 · 64 × 64', config.array.mode === 'usb' ? `按压 REV ${config.array.press.rev} · 抓取 REV ${config.array.grip.rev}` : `按压 ${config.array.press.serial.port || '未配置'} · 抓取 ${config.array.grip.serial.port || '未配置'}`], ['sensors', '拉力与位移', '各 1 个采集模块', `拉力 ${config.tension.serial.port || '未配置'} · 位移 ${d.serial.port || '未配置'}`]] as const).map(([key, title, subtitle, detail]) => <article className="hw-box" key={key}><h3>{title}</h3><p>{subtitle}</p><p>{detail}</p><button type="button" onClick={() => setTab(key)}>设置连接 →</button></article>)}</div><p className="hw-note">保存的是设备连接草稿，不会改变当前模拟试验，也不会自动打开设备或发送控制指令。</p></>}
       {tab === 'actuators' && <><div className="hw-switch"><button type="button" aria-pressed={actuator === 'motors'} onClick={() => { setActuator('motors'); setResult(null) }}>步进电机 · 共用总线</button><button type="button" aria-pressed={actuator === 'lift'} onClick={() => { setActuator('lift'); setResult(null) }}>升降装置 · 独立连接</button></div>{actuator === 'motors' ? <>
@@ -139,6 +174,8 @@ export function HardwareSettings({ controller, onDirtyChange, unlocked }: { unlo
       </>}</>}
     </fieldset></form>
     {result !== null && <div className={`hw-result${result.length ? ' error' : ''}`} role="status">{result.length ? <ul>{result.map((error, i) => <li key={i}>{readable(error)}</li>)}</ul> : '配置检查通过，不代表硬件连接成功。'}</div>}
-    <footer className="hw-footer"><p>{capability}</p><div><button disabled={!online || working} onClick={() => { if (form.current?.reportValidity()) void check() }}>检查{scope ? labels[scope] : '全部'}配置</button><button disabled={!online || working || dirty || checked !== serialized + ':' + (scope || 'all')} onClick={() => notify(capability)}>连接验证</button><button className="hw-primary" disabled={!online || working || !idle || busy || !!storeError || !dirty} onClick={() => { if (form.current?.reportValidity()) void save() }}>{working ? '处理中…' : '保存草稿'}</button></div>{!idle && <small>请先停止试验并关闭执行机构后保存配置。</small>}</footer>
+    {verificationError && <p className="settings-warning" role="alert">{verificationError}</p>}
+    {verification && verification.state !== 'idle' && <div className="hw-result" role="status"><strong>{verification.section ? labels[verification.section] : ''}只读验证</strong><p>{verification.message}</p>{verification.readings && <p style={{ overflowWrap: 'anywhere' }}>本次读取：{JSON.stringify(verification.readings)}</p>}{dirty && <p>草稿已修改，以上结果不适用于未保存配置。</p>}<p>仅为一次性诊断，非持续连接或实时采样；当前试验仍使用模拟设备。</p></div>}
+    <footer className="hw-footer"><p>{capability} 现支持电机、拉力和位移的一次性只读验证；升降及电子皮肤暂不支持。请进入对应分类操作。</p><div><button disabled={!online || working || verifying} onClick={() => { if (form.current?.reportValidity()) void check() }}>检查{scope ? labels[scope] : '全部'}配置</button><button disabled={!online || working || verifying || !idle || busy || !!storeError || !supportsVerification || dirty || checked !== serialized + ':' + (scope || 'all')} onClick={() => void verify()}>连接验证</button>{verifying && <button disabled={!online || working} onClick={() => void verify(true)}>取消验证</button>}<button className="hw-primary" disabled={!online || working || verifying || !idle || busy || !!storeError || !dirty} onClick={() => { if (form.current?.reportValidity()) void save() }}>{working ? '处理中…' : '保存草稿'}</button></div>{!idle && <small>请先停止试验并关闭执行机构后保存配置或验证通信。</small>}</footer>
   </section>
 }
