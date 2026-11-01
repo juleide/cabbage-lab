@@ -57,7 +57,7 @@ function registerIPC() {
     if (!params || typeof params !== 'object' || Array.isArray(params) || Buffer.byteLength(JSON.stringify(params)) > 64 * 1024) throw new Error('请求参数无效')
     if (method.startsWith('hardware.')) {
       deviceAuth.require(mainWindow!.webContents.id)
-      if (!['hardware.motion.status', 'hardware.status', 'hardware.sensors.status', 'hardware.sensors.records.list', 'hardware.sensors.records.read'].includes(method)) {
+      if (!['hardware.safety.get', 'hardware.safety.status', 'hardware.motion.status', 'hardware.status', 'hardware.sensors.status', 'hardware.sensors.records.list', 'hardware.sensors.records.read'].includes(method)) {
         deviceAuth.touch(mainWindow!.webContents.id)
       }
     }

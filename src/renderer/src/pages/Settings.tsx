@@ -36,7 +36,7 @@ export function Settings({ display, onBack, controller, appearance, exporting, o
   const [saving, setSaving] = useState(false)
   const [hardwareDirty, setHardwareDirty] = useState(false)
   async function leaveHardware(action: () => void) {
-    if (section === 'hardware' && hardwareDirty && !window.confirm('设备连接配置尚未保存，确认放弃修改？')) return
+    if (section === 'hardware' && hardwareDirty && !window.confirm('设备连接或运动安全草稿尚未保存，确认放弃修改？')) return
     if (section === 'hardware' && window.labDesktop) {
       try { await window.labDesktop.lockDeviceDebug() }
       catch { notify('无法锁定调试权限，请稍后重试'); return }

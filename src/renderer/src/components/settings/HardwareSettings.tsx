@@ -4,8 +4,9 @@ import type { HardwareConfig, HardwareSnapshot, HardwareCheck, HardwareSection, 
 import '../../styles/hardware.css'
 import { SensorConnections } from './SensorConnections'
 import { MotionConnections } from './MotionConnections'
+import { MotionSafetySettings } from './MotionSafetySettings'
 
-type Tab = 'overview' | 'actuators' | 'array' | 'sensors'
+type Tab = 'overview' | 'actuators' | 'array' | 'sensors' | 'safety'
 const labels: Record<HardwareSection, string> = { motors: '电机', lift: '升降', array: '电子皮肤', tension: '拉力', displacement: '位移' }
 const sectionNames: Record<string, string> = { ...labels, serial: '通信', motor1: '1 号电机站号', motor2: '2 号电机站号', press: '按压', grip: '抓取', port: '串口', baud: '波特率', bits: '数据位', parity: '校验位', stop: '停止位', timeoutMs: '响应超时', intervalMs: '读取间隔', station: '站号', unit: '单位', decimals: '小数位', channel: '通道', model: '模块类型', reading: '读取方式', rawMin: '原始值下限', rawMax: '原始值上限', lower: '位移下限', upper: '位移上限', rev: 'REV' }
 function readable(message: string) { return message.replace(/[a-zA-Z]+(?:\.[a-zA-Z0-9]+)*/g, word => word.split('.').map(part => sectionNames[part] || part).join(' / ')) }
@@ -20,6 +21,7 @@ export function HardwareSettings({ controller, onDirtyChange, unlocked }: { unlo
   const [working, setWorking] = useState(false)
   const [sensorsActive, setSensorsActive] = useState(false)
   const [motionActive, setMotionActive] = useState(false)
+  const [safetyDirty, setSafetyDirty] = useState(false)
   const hardwareActive = sensorsActive || motionActive
   const [verification, setVerification] = useState<HardwareVerification | null>(null)
   const [verificationError, setVerificationError] = useState('')
@@ -74,12 +76,12 @@ export function HardwareSettings({ controller, onDirtyChange, unlocked }: { unlo
     finally { setWorking(false) }
   }
 
-  useEffect(() => { onDirtyChange(dirty) }, [dirty, onDirtyChange])
+  useEffect(() => { onDirtyChange(dirty || safetyDirty) }, [dirty, safetyDirty, onDirtyChange])
   useEffect(() => {
-    const warn = (event: BeforeUnloadEvent) => { if (dirty) { event.preventDefault(); event.returnValue = '' } }
+    const warn = (event: BeforeUnloadEvent) => { if (dirty || safetyDirty) { event.preventDefault(); event.returnValue = '' } }
     window.addEventListener('beforeunload', warn)
     return () => window.removeEventListener('beforeunload', warn)
-  }, [dirty])
+  }, [dirty, safetyDirty])
   async function load() {
     const id = ++generation.current
     setWorking(true); setLoadError('')
@@ -155,7 +157,7 @@ export function HardwareSettings({ controller, onDirtyChange, unlocked }: { unlo
   const d = config.displacement
   return <section className="settings-card hardware-settings">
     <header className="hw-heading"><div><h2>设备连接</h2><p>配置端口、设备绑定与数据解析参数</p></div><span className="hw-mode">模拟试验 · 支持真实只读采集</span></header>
-    <nav className="hw-tabs" aria-label="设备配置分类">{([['overview', '连接概览'], ['actuators', '执行机构'], ['array', '电子皮肤'], ['sensors', '拉力与位移']] as const).map(([key, label]) => <button key={key} disabled={working} aria-pressed={tab === key} className={tab === key ? 'active' : ''} onClick={() => { setTab(key); setResult(null) }}>{label}</button>)}<span>{dirty ? '未保存' : '草稿已保存'}</span></nav>
+    <nav className="hw-tabs" aria-label="设备配置分类">{([['overview', '连接概览'], ['actuators', '执行机构'], ['array', '电子皮肤'], ['sensors', '拉力与位移'], ['safety', '运动安全']] as const).map(([key, label]) => <button key={key} disabled={working} aria-pressed={tab === key} className={tab === key ? 'active' : ''} onClick={() => { setTab(key); setResult(null) }}>{label}</button>)}<span>{dirty || safetyDirty ? '未保存' : '草稿已保存'}</span></nav>
     {storeError && <p className="settings-warning" role="alert">{storeError}。为保护原文件，暂不可保存。请通过“数据与日志”打开配置目录处理后重启控制端。</p>}
     {!online && <p className="settings-warning" role="alert">控制端离线；草稿保留，恢复连接后可继续保存。</p>}
     {scanError && <p className="settings-warning" role="alert">{scanError}；可继续手动填写端口。</p>}
@@ -178,8 +180,9 @@ export function HardwareSettings({ controller, onDirtyChange, unlocked }: { unlo
           {d.reading === 'raw' && (['rawMin', 'rawMax', 'lower', 'upper'] as const).map((key, i) => <label key={key}>{['原始值下限', '原始值上限', '位移下限', '位移上限'][i]}{number(d[key], value => patch('displacement', { [key]: value }), -1e12, 1e12, 'any', d.model === 'p' && i < 2)}</label>)}<label>结果单位<input required value={d.unit} onChange={e => patch('displacement', { unit: e.target.value })} /></label></div><p className="hw-note">{d.reading === 'raw' ? '按原始值范围与实际量程线性换算；超范围数据标记异常。' : '按 ABCD 大端 float32 解析，不重复缩放；单位需与模块内部配置一致。'}</p></details><p className="hw-note">P / G 寄存器表不同，请按实物选择；这些是应用读取参数，不会写入设备。</p>
       </>}</>}
     </fieldset></form>
-    <MotionConnections controller={controller} unlocked={unlocked} disabled={dirty || working || verifying || sensorsActive || !idle || busy || !!storeError} visible={tab === 'actuators' || tab === 'overview'} onActive={setMotionActive} />
-    <SensorConnections controller={controller} unlocked={unlocked} disabled={motionActive || dirty || working || verifying || !idle || busy || !!storeError} visible={tab === 'sensors' || tab === 'overview'} onActive={setSensorsActive} />
+    <MotionSafetySettings controller={controller} unlocked={unlocked} visible={tab === 'safety'} disabled={dirty || working || verifying || hardwareActive || !idle || busy || !!storeError} onDirtyChange={setSafetyDirty} />
+    <MotionConnections controller={controller} unlocked={unlocked} disabled={safetyDirty || dirty || working || verifying || sensorsActive || !idle || busy || !!storeError} visible={tab === 'actuators' || tab === 'overview'} onActive={setMotionActive} />
+    <SensorConnections controller={controller} unlocked={unlocked} disabled={safetyDirty || motionActive || dirty || working || verifying || !idle || busy || !!storeError} visible={tab === 'sensors' || tab === 'overview'} onActive={setSensorsActive} />
     {hardwareActive && <p className="hw-note">真实设备会话运行中，配置修改及一次性验证已锁定；请先结束真实设备连接。</p>}
     {result !== null && <div className={`hw-result${result.length ? ' error' : ''}`} role="status">{result.length ? <ul>{result.map((error, i) => <li key={i}>{readable(error)}</li>)}</ul> : '配置检查通过，不代表硬件连接成功。'}</div>}
     {verificationError && <p className="settings-warning" role="alert">{verificationError}</p>}

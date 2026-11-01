@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "hardwareVersion": "",
+  "machineId": "",
+  "reviewedBy": "",
+  "reviewedAt": "",
+  "evidence": {
+    "emergencyCircuit": "",
+    "disconnectProtection": "",
+    "mechanicalLimits": "",
+    "motorParameters": "",
+    "liftFeedback": ""
+  },
+  "motor1": {
+    "minimumMm": null,
+    "maximumMm": null,
+    "maxStepMm": null,
+    "maxDurationMs": null,
+    "pulsesPerMm": null,
+    "direction": null,
+    "zeroPulse": null,
+    "maxSpeedRpm": null
+  },
+  "motor2": {
+    "minimumMm": null,
+    "maximumMm": null,
+    "maxStepMm": null,
+    "maxDurationMs": null,
+    "pulsesPerMm": null,
+    "direction": null,
+    "zeroPulse": null,
+    "maxSpeedRpm": null
+  },
+  "lift": {
+    "minimumMm": null,
+    "maximumMm": null,
+    "maxStepMm": null,
+    "maxDurationMs": null,
+    "feedbackMaxAgeMs": null,
+    "stopTimeoutMs": null
+  }
+}

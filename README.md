@@ -105,6 +105,18 @@ python3 -m pip install -r backend/requirements.txt
 
 回归测试：`python3 scripts/motion-protocol-test.py`、`python3 scripts/hardware-motion-test.py`、`pnpm exec playwright test tests/desktop/motion.spec.ts`。后续运动参数及机械安全确认项见实施计划 D2 记录。
 
+### 运动安全草稿与离线规划（D3，不授权执行）
+
+「设备连接 → 运动安全」可保存两个电机及升降的行程、单次距离、标定、速度/时长约束和核验材料引用到数据目录的 `config/motion-safety.json`。未知值默认留空，可手动修改文件并重启应用；损坏或外部修改不会被静默覆盖。原 `hardware.json` 的结构和版本不变。
+
+- 显式绑定当前已加载的电机/升降连接配置指纹；连接参数变化会使绑定失效。配置绑定不是设备身份核验。
+- 页面展示缺项和阻断原因；资料引用不是安全验收，完整草稿也不能开启真实运动，`canExecute` 始终为 `false`。
+- 目标草稿完整、已保存且绑定匹配时，可根据人工起点计算目标脉冲/高低字或升降位置 ASCII 数值；不读取实际位置、不生成报文、不打开串口，不预测到位时间。
+- 新增时长/反馈/停止等待字段目前是规划草稿，不替代 D2 诊断策略，也不代表已实现运行看门狗。
+- 保存有版本冲突检查及活动设备互锁；未保存草稿、配置变更和外部文件修改会限制新计算，已有停止入口不依赖草稿完整性。
+
+空白示例：`docs/examples/motion-safety.example.json`。字段说明、手动修改流程及现场核验清单见 `docs/008.运动安全配置与现场核验清单.md`。测试：`python3 scripts/motion-safety-test.py`。
+
 ### 安装与启动
 
 ```sh

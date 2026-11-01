@@ -14,6 +14,8 @@ from ..devices.motion import MotionManager, SECTIONS as MOTION_SECTIONS
 from ..storage.config import ConfigStore, LIBRARIES
 from ..storage.records import RecordStore
 from ..storage.hardware import HardwareStore, validate as validate_hardware
+from ..storage.motion_safety import MotionSafetyStore, hardware_version
+from ..devices.motion_safety import assess as assess_safety, preview as preview_motion
 
 
 def now():
@@ -30,6 +32,7 @@ class Controller:
         self.emit = emit
         self.config = ConfigStore(root / 'config' / 'controller.json')
         self.hardware = HardwareStore(root / 'config' / 'hardware.json')
+        self.safety = MotionSafetyStore(root / 'config' / 'motion-safety.json')
         self.verification = VerificationManager()
         self.sensors = SensorManager()
         self.motion = MotionManager()
@@ -205,6 +208,23 @@ class Controller:
     def request(self, method, params):
         require(isinstance(params, dict), '请求参数必须是对象')
         self.poll_hardware()
+        if method in ('hardware.safety.get', 'hardware.safety.status'):
+            require(not params, '该请求不接受参数')
+            assessment = self.safety_assessment()
+            return {'config': copy.deepcopy(self.safety.value), 'assessment': assessment} if method.endswith('.get') else assessment
+        if method == 'hardware.safety.save':
+            require(set(params) == {'config', 'expectedVersion', 'expectedHardwareVersion'}, '安全配置保存参数错误')
+            self.idle()
+            require(not self.motion.active() and not self.sensors.active() and not self.verification.active(), '请先结束真实设备诊断、采集及验证，再保存安全草稿')
+            require(not self.hardware.error, self.hardware.error or '')
+            require(params['expectedHardwareVersion'] == hardware_version(self.hardware.value), '设备连接配置已变化，请刷新评估并显式重新绑定草稿')
+            self.safety.save(params['config'], params['expectedVersion'])
+            self.log(f'运动安全草稿已保存 {self.safety.version}，仅为配置记录，不产生运动许可')
+            return {'config': copy.deepcopy(self.safety.value), 'assessment': self.safety_assessment()}
+        if method == 'hardware.safety.preview':
+            result = preview_motion(self.safety, self.hardware.value, self.safety_assessment(), params)
+            self.log('运动离线规划（不执行）：' + json.dumps(result, ensure_ascii=False, sort_keys=True))
+            return result
         if method == 'hardware.motion.status':
             require(not params, '该请求不接受参数')
             return self.motion.snapshot()
@@ -382,6 +402,10 @@ class Controller:
             self.stop('系统休眠：停止试验和全部模拟执行机构')
             return None
         raise ValueError('不允许的请求方法')
+
+    def safety_assessment(self):
+        return assess_safety(self.safety, self.hardware.value, self.motion.snapshot(),
+                             self.hardware.error, self.state['stopped'])
 
     def poll_hardware(self):
         for section, session in self.motion.sessions.items():
