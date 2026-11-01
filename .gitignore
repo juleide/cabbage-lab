@@ -8,3 +8,9 @@ playwright-report/
 __pycache__/
 *.py[cod]
 backend/.venv/
+
+# Local credentials must never enter source control.
+.env
+.env.*
+!.env.example
+resources/config/device.env.enc

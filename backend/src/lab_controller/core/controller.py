@@ -8,6 +8,7 @@ from ..array.acquisition import ArrayAcquisition
 from ..devices.simulated import DEVICE_NAMES, SimulatedDevice
 from ..storage.config import ConfigStore, LIBRARIES
 from ..storage.records import RecordStore
+from ..storage.hardware import HardwareStore, validate as validate_hardware
 
 
 def now():
@@ -23,6 +24,7 @@ class Controller:
     def __init__(self, root, emit):
         self.emit = emit
         self.config = ConfigStore(root / 'config' / 'controller.json')
+        self.hardware = HardwareStore(root / 'config' / 'hardware.json')
         self.records = RecordStore(root / 'data' / 'experiments.sqlite3')
         self.device = SimulatedDevice()
         self.state = {
@@ -210,6 +212,18 @@ class Controller:
             self.array.configure(mode=params['mode'])
             self.publish()
             return self.array.status()
+        if method == 'hardware.get':
+            return {'config': copy.deepcopy(self.hardware.value), 'error': self.hardware.error,
+                    'drivers': {'available': False, 'message': '当前版本未接入真实串口及 USB 驱动；配置可保存，不影响模拟试验。'}}
+        if method == 'hardware.save':
+            self.idle()
+            require(set(params) == {'config'}, '设备配置参数错误')
+            result = self.hardware.save(params['config'])
+            self.log('设备连接草稿已保存，未连接真实硬件')
+            return result
+        if method == 'hardware.check':
+            require(set(params) <= {'config', 'section'} and 'config' in params, '设备检查参数错误')
+            return {'errors': validate_hardware(params['config'], complete=True, section=params.get('section'))}
         if method == 'config.get':
             return {'config': self.config.value, 'error': self.config.error}
         if method == 'config.update':

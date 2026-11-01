@@ -7,6 +7,7 @@ import type { ControllerEvent, Snapshot } from '../shared/controller'
 import { ControllerProcess } from './services/controller'
 import { exportRecords } from './services/export-records'
 import { UIPreferences } from './services/preferences'
+import { loadDeviceDebugAuth, type DeviceDebugAuth } from './services/device-auth'
 
 const here = fileURLToPath(new URL('.', import.meta.url))
 let mainWindow: BrowserWindow | null = null
@@ -17,6 +18,9 @@ let exporting = false
 let sleepBlocker: number | undefined
 let root = ''
 let preferences: UIPreferences
+let deviceAuth: DeviceDebugAuth
+let authWasAuthorized = false
+let authTimer: ReturnType<typeof setInterval> | undefined
 
 function power(active: boolean) {
   if (active && sleepBlocker === undefined) sleepBlocker = powerSaveBlocker.start('prevent-app-suspension')
@@ -30,10 +34,29 @@ function handler(channel: string, callback: (...args: any[]) => unknown) {
   })
 }
 
+function lockDeviceDebug() {
+  authWasAuthorized = false
+  deviceAuth.lock()
+  if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.webContents.isDestroyed()) mainWindow.webContents.send('device-auth:locked')
+}
+
 function registerIPC() {
+  handler('device-auth:status', () => deviceAuth.status(mainWindow!.webContents.id))
+  handler('device-auth:login', (username: unknown, password: unknown) => {
+    const result = deviceAuth.login(mainWindow!.webContents.id, username, password)
+    authWasAuthorized = result.authorized
+    if (!result.authorized) mainWindow!.webContents.send('device-auth:locked')
+    return result
+  })
+  handler('device-auth:lock', () => lockDeviceDebug())
+  handler('device-auth:touch', () => deviceAuth.touch(mainWindow!.webContents.id))
   handler('controller:request', (method: unknown, params: unknown = {}) => {
     if (typeof method !== 'string' || !rendererMethods.includes(method)) throw new Error('不允许的控制方法')
     if (!params || typeof params !== 'object' || Array.isArray(params) || Buffer.byteLength(JSON.stringify(params)) > 64 * 1024) throw new Error('请求参数无效')
+    if (method.startsWith('hardware.')) {
+      deviceAuth.require(mainWindow!.webContents.id)
+      deviceAuth.touch(mainWindow!.webContents.id)
+    }
     return controller.request(method, params as Record<string, unknown>)
   })
   handler('controller:restart', async () => {
@@ -85,11 +108,27 @@ function createWindow() {
     autoHideMenuBar: true,
     webPreferences: { preload: join(here, '../preload/index.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true }
   })
+  mainWindow.webContents.on('did-start-navigation', (_event, _url, inPlace, isMainFrame) => {
+    if (isMainFrame && !inPlace) lockDeviceDebug()
+  })
+  mainWindow.webContents.on('render-process-gone', () => lockDeviceDebug())
   mainWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
+  mainWindow.webContents.on('before-input-event', (event, input) => {
+    if (input.type !== 'keyDown' || input.key !== 'F12' || input.isAutoRepeat) return
+    event.preventDefault()
+    mainWindow?.webContents.openDevTools({ mode: 'detach' })
+  })
   mainWindow.webContents.on('will-navigate', event => event.preventDefault())
   if (process.env.ELECTRON_RENDERER_URL) void mainWindow.loadURL(process.env.ELECTRON_RENDERER_URL)
   else void mainWindow.loadFile(join(here, '../renderer/index.html'))
-  mainWindow.on('closed', () => { mainWindow = null })
+  mainWindow.on('closed', () => { deviceAuth.lock(); clearInterval(authTimer); mainWindow = null })
+  authTimer = setInterval(() => {
+    if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.webContents.isDestroyed() && authWasAuthorized && !deviceAuth.status(mainWindow.webContents.id).authorized) {
+      authWasAuthorized = false
+      mainWindow.webContents.send('device-auth:locked')
+    }
+  }, 1000)
+  authTimer.unref()
 }
 
 if (!app.requestSingleInstanceLock()) app.quit()
@@ -100,6 +139,14 @@ else {
     // Simulation data never shares the reference project's directories or real hardware data.
     root = resolve(process.env.LAB_DATA_DIR || join(app.getPath('userData'), 'simulation'))
     for (const kind of ['data', 'config', 'logs']) await mkdir(join(root, kind), { recursive: true })
+    const bundledEnv = app.isPackaged ? join(process.resourcesPath, 'config', 'device.env.enc') : undefined
+    deviceAuth = await loadDeviceDebugAuth(
+      app.isPackaged ? undefined : join(app.getAppPath(), '.env'),
+      app.isPackaged ? {} : process.env,
+      bundledEnv
+    )
+    delete process.env.LAB_DEVICE_DEBUG_USERNAME
+    delete process.env.LAB_DEVICE_DEBUG_PASSWORD
     preferences = new UIPreferences(join(app.getPath('userData'), 'ui.json'))
     await preferences.load()
     controller = new ControllerProcess(root)
@@ -113,6 +160,7 @@ else {
     registerIPC()
     createWindow()
     powerMonitor.on('suspend', () => {
+      lockDeviceDebug()
       void controller.request('system.suspend').catch(() => controller.stop()).catch(() => {})
     })
     void controller.start().catch(() => { /* The settings page exposes errors and manual restart. */ })

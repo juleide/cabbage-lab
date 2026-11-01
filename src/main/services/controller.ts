@@ -36,9 +36,12 @@ export class ControllerProcess extends EventEmitter {
       const source = app.isPackaged
         ? join(process.resourcesPath, 'backend', 'src')
         : join(app.getAppPath(), 'backend', 'src')
+      const environment = { ...process.env }
+      delete environment.LAB_DEVICE_DEBUG_USERNAME
+      delete environment.LAB_DEVICE_DEBUG_PASSWORD
       const child = spawn(this.python, ['-m', 'lab_controller', '--data-dir', this.root], {
         stdio: 'pipe', windowsHide: true,
-        env: { ...process.env, PYTHONUTF8: '1', PYTHONUNBUFFERED: '1', PYTHONPATH: [source, process.env.PYTHONPATH].filter(Boolean).join(delimiter) }
+        env: { ...environment, PYTHONUTF8: '1', PYTHONUNBUFFERED: '1', PYTHONPATH: [source, process.env.PYTHONPATH].filter(Boolean).join(delimiter) }
       })
       this.child = child
       let failed = false

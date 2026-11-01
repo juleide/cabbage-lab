@@ -15,7 +15,7 @@
     "build": "pnpm typecheck && electron-vite build",
     "preview": "electron-vite preview",
     "test:desktop": "playwright test",
-    "package": "pnpm build && electron-builder",
+    "package": "pnpm build && node scripts/prepare-package-env.mjs && electron-builder",
     "test": "node --experimental-strip-types --test tests/unit/*.test.mjs",
     "backend:check": "python3 scripts/controller-smoke.py",
     "icons:build": "node scripts/build-icons.mjs"

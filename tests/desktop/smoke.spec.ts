@@ -10,6 +10,13 @@ test('Python-backed desktop and settings', async () => {
     const page = await app.firstWindow()
     await expect(page.getByText('设备已就绪', { exact: true })).toBeVisible()
     expect(await page.evaluate(() => typeof (window as any).require)).toBe('undefined')
+    await page.keyboard.press('F12')
+    await expect.poll(() => app.evaluate(({ BrowserWindow }) =>
+      BrowserWindow.getAllWindows().some(window => window.webContents.isDevToolsOpened())
+    )).toBe(true)
+    await app.evaluate(({ BrowserWindow }) => {
+      for (const window of BrowserWindow.getAllWindows()) window.webContents.closeDevTools()
+    })
     await page.getByRole('switch', { name: '1 号电机启停' }).click()
     await page.getByRole('switch', { name: '2 号电机启停' }).click()
     await page.getByRole('button', { name: '联动开始', exact: true }).click()

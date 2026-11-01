@@ -7,6 +7,7 @@ import type { useTheme } from '../hooks/useTheme'
 import { AppearanceSettings } from '../components/settings/AppearanceSettings'
 import { ExperimentSettings } from '../components/settings/ExperimentSettings'
 import { RecordsSettings } from '../components/settings/RecordsSettings'
+import { DeviceDebugGate } from '../components/settings/DeviceDebugGate'
 import { DiagnosticsSettings } from '../components/settings/DiagnosticsSettings'
 
 interface Props {
@@ -33,6 +34,16 @@ export function Settings({ display, onBack, controller, appearance, exporting, o
   const [section, setSection] = useState<Section>('appearance')
   const [draft, setDraft] = useState<LabConfig | null>(config)
   const [saving, setSaving] = useState(false)
+  const [hardwareDirty, setHardwareDirty] = useState(false)
+  async function leaveHardware(action: () => void) {
+    if (section === 'hardware' && hardwareDirty && !window.confirm('设备连接配置尚未保存，确认放弃修改？')) return
+    if (section === 'hardware' && window.labDesktop) {
+      try { await window.labDesktop.lockDeviceDebug() }
+      catch { notify('无法锁定调试权限，请稍后重试'); return }
+    }
+    setHardwareDirty(false)
+    action()
+  }
   const idle = !!state && !state.running && !Object.values(state.devices).some(Boolean)
   useEffect(() => { setDraft(config) }, [config])
   const loadRecords = useCallback(() => request<RunRecord[]>('records.list'), [request])
@@ -59,13 +70,13 @@ export function Settings({ display, onBack, controller, appearance, exporting, o
   return (
     <main className="settings-page">
       <nav className="settings-nav" aria-label="设置分类">
-        <button className="settings-back" onClick={onBack}>
+        <button className="settings-back" onClick={() => leaveHardware(onBack)}>
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 6-6 6 6 6M8 12h12" /></svg>
           返回试验台
         </button>
         <div className="settings-nav-items">
         {sections.map(item => <button key={item.id} className={section === item.id ? 'active' : ''}
-          aria-current={section === item.id ? 'page' : undefined} onClick={() => setSection(item.id)}><SettingsNavIcon section={item.id} /><span>{item.label}</span><svg className="settings-nav-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg></button>)}
+          aria-current={section === item.id ? 'page' : undefined} onClick={() => { if (item.id !== section) leaveHardware(() => setSection(item.id)) }}><SettingsNavIcon section={item.id} /><span>{item.label}</span><svg className="settings-nav-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg></button>)}
         </div>
         <div className="settings-nav-note">
           <span className="settings-mode"><i />模拟环境</span>
@@ -82,14 +93,7 @@ export function Settings({ display, onBack, controller, appearance, exporting, o
           exporting={exporting} loadRecords={loadRecords} onExport={onExport} onDirectory={openDirectory} />}
         {section === 'diagnostics' && <DiagnosticsSettings info={info} online={online} idle={idle}
           busy={busy || exporting || saving} error={error} onRestart={restart} onStop={() => { void controller.send({ type: 'stop' }) }} />}
-        {section === 'hardware' && (
-          <section className="settings-card">
-            <h3>设备连接 · 暂未开放</h3>
-            <p>设备连接功能尚未启用，当前仅支持模拟操作。</p>
-
-            <p className="settings-warning">模拟模式不会向真实设备发送控制指令。</p>
-          </section>
-        )}
+        {section === 'hardware' && <DeviceDebugGate controller={controller} dirty={hardwareDirty} onDirtyChange={setHardwareDirty} />}
       </div>
     </main>
   )

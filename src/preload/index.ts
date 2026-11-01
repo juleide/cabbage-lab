@@ -3,6 +3,15 @@ import type { DesktopAPI } from '../shared/desktop-api'
 import type { ControllerEvent } from '../shared/controller'
 
 const api: DesktopAPI = {
+  getDeviceDebugAuth: () => ipcRenderer.invoke('device-auth:status'),
+  loginDeviceDebug: (username, password) => ipcRenderer.invoke('device-auth:login', username, password),
+  lockDeviceDebug: () => ipcRenderer.invoke('device-auth:lock'),
+  touchDeviceDebug: () => ipcRenderer.invoke('device-auth:touch'),
+  onDeviceDebugLocked: callback => {
+    const listener = () => callback()
+    ipcRenderer.on('device-auth:locked', listener)
+    return () => ipcRenderer.removeListener('device-auth:locked', listener)
+  },
   request: (method, params = {}) => ipcRenderer.invoke('controller:request', method, params),
   subscribe: callback => {
     const listener = (_event: Electron.IpcRendererEvent, message: ControllerEvent) => callback(message)

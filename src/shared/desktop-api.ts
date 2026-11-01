@@ -1,3 +1,4 @@
+import type { DeviceAuthResult, DeviceAuthState } from './device-auth'
 import type { AppInfo, ControllerEvent, ControllerMethod, DisplayRange, Theme } from './controller'
 
 export type ExportResult =
@@ -6,6 +7,11 @@ export type ExportResult =
 
 /** Only whitelisted device operations and fixed desktop capabilities cross the bridge. */
 export interface DesktopAPI {
+  getDeviceDebugAuth(): Promise<DeviceAuthState>
+  loginDeviceDebug(username: string, password: string): Promise<DeviceAuthResult>
+  lockDeviceDebug(): Promise<void>
+  touchDeviceDebug(): Promise<DeviceAuthState>
+  onDeviceDebugLocked(callback: () => void): () => void
   request<T = unknown>(method: ControllerMethod, params?: Record<string, unknown>): Promise<T>
   subscribe(callback: (event: ControllerEvent) => void): () => void
   restartController(): Promise<void>

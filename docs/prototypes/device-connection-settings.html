@@ -1,0 +1,273 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Cabbage Lab · 设备连接设置原型</title>
+<style>
+:root{--bg:#f3f6f8;--surface:#fff;--ink:#263a48;--muted:#82919e;--line:#e5ebef;--accent:#247bca;--soft:#edf5fd;--green:#27866e;--red:#c5534c;--amber:#a97628;--shadow:0 4px 20px #273f5506}*{box-sizing:border-box}[hidden]{display:none!important}body{margin:0;background:#e6ecf1;color:var(--ink);font:13px/1.5 -apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif}button,input,select{font:inherit}button{cursor:pointer;touch-action:manipulation}button:disabled{cursor:not-allowed;opacity:.45}button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible{outline:3px solid #8ec4f5;outline-offset:2px}svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0;vertical-align:middle}.viewport{position:fixed;inset:0;display:grid;place-items:center;overflow:hidden}.space{position:relative;flex:none}.app{position:absolute;inset:0 auto auto 0;width:1024px;height:600px;transform:scale(var(--scale,1));transform-origin:top left;padding:16px;display:grid;grid-template-columns:176px minmax(0,1fr);gap:14px;background:var(--bg)}.sidebar{display:flex;flex-direction:column;padding:12px;background:var(--surface);border:1px solid var(--line);border-radius:13px;box-shadow:var(--shadow)}.back{display:flex;align-items:center;gap:9px;height:44px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--ink);font-weight:500;padding:0 12px;margin-bottom:22px}.nav{display:flex;flex-direction:column;gap:6px}.nav button{display:flex;align-items:center;gap:10px;height:45px;padding:0 12px;border:0;border-radius:8px;background:none;color:#84919b;text-align:left;font-size:12px}.nav button.active{background:var(--soft);color:var(--accent);font-weight:600;box-shadow:inset 3px 0 var(--accent)}.nav button:hover{background:var(--bg)}.nav button.active:hover{background:var(--soft)}.nav .chevron{margin-left:auto;width:12px}.sidebar-bottom{margin-top:auto;padding:16px 9px 4px;border-top:1px solid var(--line);font-size:10px;color:var(--muted)}.sidebar-bottom strong{display:flex;align-items:center;gap:6px;color:#526b7e;font-weight:500;font-size:12px;margin-bottom:5px}.dot{display:inline-block;width:6px;height:6px;flex-shrink:0;border-radius:50%;background:#a8b6c1}.dot.blue{background:var(--accent)}.dot.green{background:var(--green)}.main{min-height:0;display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--line);border-radius:13px;box-shadow:var(--shadow);overflow:hidden}.page-head{padding:20px 24px 15px;display:flex;align-items:center;justify-content:space-between;gap:16px}.page-head h1{margin:0;font-size:19px;font-weight:600;letter-spacing:.4px}.page-head p{margin:4px 0 0;font-size:11px;color:var(--muted)}.prototype-tag{display:flex;align-items:center;gap:6px;white-space:nowrap;border:1px solid #d6e5f3;background:#f5f9fe;color:#6185a7;padding:4px 8px;border-radius:5px;font-size:10px}.tabs{display:flex;padding:0 24px;gap:25px;border-bottom:1px solid var(--line)}.tabs button{position:relative;height:44px;border:0;background:none;padding:0 2px;color:#8795a1;font-size:12px;display:flex;align-items:center;gap:7px;white-space:nowrap}.tabs button svg{width:15px;height:15px}.tabs button[aria-selected=true]{color:var(--accent);font-weight:600}.tabs button[aria-selected=true]:after{content:"";position:absolute;bottom:-1px;left:0;right:0;height:3px;border-radius:3px 3px 0 0;background:var(--accent)}.content{flex:1;min-height:0;overflow:auto;scrollbar-width:thin;scrollbar-color:#d4dfe7 transparent;padding:18px 24px 20px}.pane[hidden],.conditional[hidden]{display:none!important}.section-title{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:13px}.section-title h2{margin:0;font-size:14px;font-weight:600}.eyebrow{font-size:10px;color:var(--muted);letter-spacing:.6px}.cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.device-card{padding:14px;border:1px solid var(--line);border-radius:9px;min-width:0;display:flex;flex-direction:column}.device-card-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:11px}.device-card .tile{width:32px;height:32px;border-radius:8px;display:grid;place-items:center;background:var(--soft);color:var(--accent)}.device-card:nth-child(2) .tile{background:#edf8f4;color:#438d77}.device-card:nth-child(3) .tile{background:#f1effb;color:#8a7cb4}.device-card h3{font-size:13px;font-weight:600;margin:0 0 4px}.device-card p{font-size:10px;color:var(--muted);margin:0 0 13px;line-height:1.8}.device-card .summary{font-size:10px;color:#536d81;padding-top:10px;border-top:1px solid var(--line);margin-top:auto}.device-card .link{align-self:flex-start;margin-top:7px}.badge{display:inline-flex;align-items:center;gap:5px;white-space:nowrap;padding:3px 7px;background:#f0f3f6;color:#8998a5;border-radius:5px;font-size:9px;font-weight:500}.badge.good{background:#ebf7f1;color:var(--green)}.badge.warn{background:#fff6e8;color:var(--amber)}.badge.busy{background:var(--soft);color:var(--accent)}.link{border:0;background:transparent;color:var(--accent);padding:0;min-height:32px;font-size:11px;display:inline-flex;align-items:center;gap:4px}.link svg{width:13px;height:13px}.steps{display:flex;align-items:center;gap:10px;background:#fafcfe;border:1px solid var(--line);padding:13px 16px;border-radius:9px;margin:16px 0}.step{display:flex;align-items:center;gap:6px;font-size:10px;color:#8b9aa8;white-space:nowrap}.step i{font-style:normal;width:19px;height:19px;border-radius:50%;display:grid;place-items:center;border:1px solid #dce5ed;background:#fff;font-size:9px}.steps>span{height:1px;flex:1;background:#e2e9f0}.step:first-child{color:var(--accent)}.step:first-child i{border-color:#c3dcf4;background:var(--soft)}.feedback{border:1px solid var(--line);border-radius:9px;overflow:hidden}.feedback-head{display:flex;align-items:center;justify-content:space-between;background:#fbfcfe;padding:9px 12px;font-size:11px;font-weight:500}.feedback-head span{font-size:9px;font-weight:400;color:var(--muted)}.event{display:flex;gap:12px;font-size:10px;padding:9px 12px;border-top:1px solid #f1f4f7;color:#718697}.event time{font:10px ui-monospace,monospace;color:#9aa8b3;flex-shrink:0}.footer{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:67px;padding:11px 24px;border-top:1px solid var(--line);background:#fff}.footer-note{font-size:10px;color:var(--muted);display:flex;align-items:center;gap:6px}.footer-note svg{width:14px;height:14px}.actions{display:flex;gap:8px;align-items:center}.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:40px;padding:0 14px;border:1px solid #dce5ee;border-radius:7px;background:#fff;color:#617b8f;font-size:11px;white-space:nowrap}.btn:hover:not(:disabled){background:#f1f7fc;border-color:#b8d5ee}.btn svg{width:14px;height:14px}.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}.btn.primary:hover:not(:disabled){background:#176cb8}.btn.ghost{color:var(--accent);background:var(--soft);border-color:#d8e8f8}.btn.danger{color:var(--red);border-color:#ebd2cf;background:#fff9f8}.btn.small{min-height:36px;padding:0 10px;font-size:10px}.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px 18px}.field{display:flex;flex-direction:column;gap:6px;min-width:0;font-size:11px;color:#536b7e}.field>span{font-size:9px;color:var(--muted);margin-top:-2px}.field input,.field select{width:100%;min-width:0;height:39px;border:1px solid #dce5ed;border-radius:7px;background:#fbfcfe;padding:0 11px;color:#3e5c73;font-size:12px}.field input:disabled,.field select:disabled{background:#f0f4f7;color:#99a7b3}.field input[readonly]{color:#8b9ba8;background:#f5f8fa}.row-input{display:flex;gap:7px;align-items:center}.row-input select,.row-input input{flex:1}.form-grid .full{grid-column:1/-1}.field-note{font-size:10px;color:#8c9ba7;margin:10px 0 14px;line-height:1.8}.notice{display:flex;align-items:flex-start;gap:8px;padding:10px 12px;border-radius:7px;font-size:10px;line-height:1.8;background:#f3f8fd;color:#6c8ca8;border:1px solid #e0edf8;margin-bottom:16px}.notice svg{width:14px;height:14px;margin-top:2px}.notice.amber{background:#fffaf1;border-color:#f1e7d1;color:#a0824f}.mini-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}.mini-grid .field input,.mini-grid .field select{height:37px;font-size:11px;padding:0 8px}.divider{margin:18px 0;border:0;border-top:1px solid var(--line)}details{border:1px solid var(--line);border-radius:8px;margin-top:16px}summary{padding:11px 12px;cursor:pointer;font-size:11px;color:#70869a;min-height:40px}details .details-body{padding:0 12px 13px}.mapping{width:100%;border-collapse:collapse;font-size:10px}.mapping th{font-weight:500;text-align:left;color:#8b9aa7;padding:9px 10px;background:#f8fafc}.mapping td{padding:10px;border-top:1px solid #edf1f5;color:#677f92}.mapping td:last-child{color:#9aabb9}.check{display:flex;align-items:center;gap:8px;font-size:11px;color:#677d8e;min-height:30px}.check input{accent-color:var(--accent);width:14px;height:14px}.transport{margin-bottom:15px}.status-row{display:flex;align-items:center;justify-content:space-between;gap:10px;border:1px solid var(--line);background:#fafcfe;border-radius:8px;padding:11px 12px;margin-top:13px;font-size:11px;color:#7990a2}.status-row .status-main{display:flex;align-items:center;gap:7px}.readonly-specs{display:flex;align-items:center;gap:20px;font-size:10px;padding:11px 12px;background:#f6f9fc;border:1px solid var(--line);border-radius:7px;margin:14px 0}.readonly-specs span{color:#8b9ba7}.readonly-specs strong{font-size:10px;font-weight:500;color:#57758d;margin-left:6px}.bind-grid{margin-top:14px}.sensor-table{width:100%;border-collapse:collapse;font-size:11px}.sensor-table th{font-weight:500;font-size:10px;text-align:left;background:#f7fafc;color:#8a9aa6;padding:10px}.sensor-table td{padding:12px 10px;border-bottom:1px solid #edf2f6;color:#587086}.sensor-table select{width:132px;height:35px;padding:0 8px;background:#fbfcfe;border:1px solid #dce5ed;border-radius:6px;color:#5d778b;font-size:10px}.sensor-table td small{display:block;color:#9cabb6;font-size:9px;margin-top:3px}.sensor-table input[type=checkbox]{accent-color:var(--accent);width:14px;height:14px}.channel{font:10px ui-monospace,monospace;color:#97a8b6}.sensor-status{display:flex;align-items:center;gap:5px;font-size:10px;color:#9aa8b4}.switch{position:relative;width:32px;height:19px;display:inline-block}.switch input{position:absolute;opacity:0;width:100%;height:100%;margin:0;cursor:pointer;z-index:1}.switch span{display:block;width:100%;height:100%;border-radius:20px;background:#d6e0e8}.switch span:after{content:"";position:absolute;left:3px;top:3px;width:13px;height:13px;border-radius:50%;background:#fff;transition:left .15s}.switch input:checked+span{background:var(--accent)}.switch input:checked+span:after{left:16px}.switch input:focus-visible+span{outline:3px solid #8ec4f5;outline-offset:2px}.sensor-summary{display:flex;gap:20px;align-items:center;background:#f6f9fc;padding:12px 14px;border:1px solid var(--line);border-radius:8px;font-size:10px;color:#8296a7;margin-top:15px}.sensor-summary strong{color:var(--accent);font-size:17px;font-weight:500;margin-right:4px}.saved-state{font-size:10px;color:#9aa9b4;display:flex;gap:6px;align-items:center;margin-left:auto}.saved-state.changed{color:#af8743}.pane fieldset{border:0;padding:0;margin:0;min-width:0}.pane fieldset:disabled{opacity:.66}dialog{width:min(480px,90vw);border:1px solid var(--line);border-radius:13px;padding:23px;color:var(--ink);box-shadow:0 12px 60px #263e5926;background:#fff}dialog::backdrop{background:#1c35564d;backdrop-filter:blur(3px)}.modal-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:15px}.modal-head h2{font-size:16px;margin:0;font-weight:600}.close{width:32px;height:32px;border:0;background:#f1f5f8;border-radius:6px;color:#8b9aa8;font-size:21px}.modal-copy{font-size:12px;color:#788d9e;line-height:1.9}.modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:18px}.scan-result{display:flex;align-items:center;justify-content:space-between;border:1px solid var(--line);border-radius:8px;padding:12px;margin-top:10px;gap:12px}.scan-result strong{font-size:12px;font-weight:500}.scan-result small{display:block;font-size:10px;color:var(--muted);margin-top:4px}.toast{position:fixed;left:50%;bottom:25px;transform:translate(-50%,10px);background:#2e4b63;color:#fff;max-width:85vw;padding:11px 17px;border-radius:8px;box-shadow:0 6px 22px #1e3d5526;font-size:12px;opacity:0;pointer-events:none;transition:opacity .16s,transform .16s;z-index:20}.toast.visible{opacity:1;transform:translate(-50%,0)}.file-state{font-size:10px;color:#8395a4;margin-top:7px}.spinner{width:12px;height:12px;border:2px solid #c8ddf0;border-top-color:var(--accent);border-radius:50%;display:inline-block;animation:spin .8s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}@media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+.device-switch{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:17px}.device-switch button{display:flex;flex-direction:column;align-items:flex-start;gap:5px;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:#fafcfe;color:var(--ink);font-size:12px}.device-switch button[aria-pressed=true]{border-color:#8dbce7;background:var(--soft);box-shadow:inset 0 2px var(--accent)}.device-switch small{font-size:9px;color:var(--muted)}.actuator-overview{margin-bottom:8px}.actuator-overview>div{display:grid;grid-template-columns:1fr 48px auto;gap:4px;align-items:center;padding:5px 0;border-bottom:1px solid #f1f4f7;font-size:10px}.actuator-overview .badge{padding:2px 4px;font-size:8px}.actuator-overview code{font-size:9px;color:var(--muted)}.device-card p{margin-bottom:8px}.tabs{gap:20px}.footer-note{max-width:300px}.footer .btn{padding:0 10px}
+.section-number{display:inline-grid;place-items:center;width:23px;height:23px;margin-right:5px;background:var(--soft);color:var(--accent);border-radius:6px;font-size:10px}.collector-health{display:flex;gap:22px;margin-top:14px;padding:11px 13px;background:#f7fafc;border:1px solid var(--line);border-radius:7px;color:#8295a4;font-size:10px}.sensor-types{display:flex;gap:8px;align-items:center;font-size:10px;color:var(--muted)}.sensor-types strong{padding:3px 8px;background:var(--soft);border-radius:5px;color:var(--accent);font-weight:500}.sensor-configs{display:grid;gap:12px}.sensor-config{border:1px solid var(--line);border-radius:9px;padding:13px}.sensor-config-head{display:flex;align-items:center;gap:10px;margin-bottom:10px}.sensor-config-head strong{font-size:12px;font-weight:600}.sensor-config-head .remove-sensor{margin-left:auto;color:var(--muted)}.sensor-config-grid{display:grid;grid-template-columns:1.3fr 1fr 80px;gap:12px}.sensor-config-bottom{display:flex;align-items:center;gap:18px;margin-top:10px}.sensor-config-bottom .sensor-status{margin-left:auto}.sensor-config details{margin-top:10px}.tabs{gap:17px}.saved-state{font-size:9px}
+
+.profile-heading{display:flex;align-items:center;gap:7px;margin:4px 0 12px;font-size:12px;font-weight:600}.profile-heading b{font-size:10px;color:var(--accent);background:var(--soft);padding:3px 6px;border-radius:4px}.protocol-strip{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}.protocol-strip span{font-size:10px;padding:4px 8px;border:1px solid var(--line);border-radius:5px;background:#f8fafc;color:#668095}.health-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:10px 0}.health-grid>div{background:#f7fafc;padding:9px 11px;border-radius:6px;font-size:10px;color:var(--muted)}.health-grid strong{display:block;color:#5c7283;font-size:12px;font-weight:500;margin-top:4px}.feedback-panel{margin-top:18px;border-top:1px solid var(--line);padding-top:16px}.profile-note{margin:12px 0;font-size:10px;line-height:1.9;color:#8c744b;background:#fffaf1;padding:9px 11px;border-radius:6px}.doc-links{display:flex;gap:14px;margin-top:12px;font-size:10px}.doc-links a{color:var(--accent)}.reference-table{width:100%;border-collapse:collapse;font-size:10px}.reference-table td,.reference-table th{text-align:left;padding:7px;border-bottom:1px solid var(--line);font-weight:400}.reference-table th{color:var(--muted)}
+
+.array-bindings{display:grid;gap:12px}.array-binding{border:1px solid var(--line);border-radius:9px;padding:13px 14px}.array-binding .section-title{margin-bottom:10px}.array-binding h2{font-size:12px}.array-health{display:flex;gap:28px;border-top:1px solid var(--line);margin-top:11px;padding-top:9px;font-size:10px;color:var(--muted)}.array-health strong{font-weight:500;color:#688093;margin-left:4px}.array-advanced{padding:10px 0}.array-advanced+.array-advanced{border-top:1px solid var(--line)}.array-advanced>strong{display:block;font-size:11px;margin-bottom:8px;font-weight:500}.array-advanced input[type=file]{max-width:100%;font-size:10px}.array-help-row{display:flex;justify-content:space-between;align-items:center;margin-top:9px;font-size:10px;color:var(--muted)}
+
+/* Keep the desktop settings shell; use normal document flow on narrow screens. */
+.device-card:nth-child(3) .tile{background:#edf5fd;color:var(--accent)}
+.tabs{gap:20px}.cards{gap:10px}.device-card{padding:13px}.device-card h3{font-size:12px}
+.family-switch{display:flex;gap:7px;margin-bottom:16px;flex-wrap:wrap}.family-switch button{border:1px solid var(--line);border-radius:7px;background:#fafcfe;padding:8px 14px;color:#718697;font-size:11px}.family-switch button[aria-pressed=true]{border-color:#a6c9e9;background:var(--soft);color:var(--accent)}
+.bus-card{border:1px solid #dbe7f1;border-radius:9px;padding:14px;background:#fbfdff;margin-bottom:17px}.bus-title{display:flex;align-items:center;gap:7px;font-size:12px;font-weight:600;margin-bottom:12px}.bus-title svg{color:var(--accent);width:16px;height:16px}.bus-title .badge{margin-left:auto}.bus-card .form-grid{grid-template-columns:1.4fr 1fr 1fr;gap:12px}.bus-card .field input,.bus-card .field select{font-size:11px}.bus-caption{margin:10px 0 0;color:var(--muted);font-size:10px;line-height:1.8}
+.module-list{display:grid;gap:11px}.module{padding:13px;border:1px solid var(--line);border-radius:9px;background:#fff}.module-head{display:flex;align-items:center;gap:8px;margin-bottom:11px}.module-head strong{font-size:12px}.module-head .badge{margin-left:auto}.module-head button{color:var(--muted);font-size:10px}.module .form-grid{grid-template-columns:1.4fr .7fr 1fr;gap:11px}.module .field input,.module .field select{font-size:11px}.module details{margin-top:12px}.module .details-body .form-grid{grid-template-columns:1fr 1fr}.module-meta{margin:10px 0 0;font-size:10px;line-height:1.8;color:var(--muted)}.binding-list{display:grid;gap:10px;margin-top:10px}.binding{padding:10px;background:#f7fafc;border-radius:7px}.binding-head{display:flex;align-items:center;gap:7px;margin-bottom:8px;font-size:11px}.binding-head button{margin-left:auto}.binding .form-grid{grid-template-columns:.7fr 1fr 1fr}.binding .check{margin-top:5px;font-size:10px}
+.readiness{margin-top:18px;padding-top:15px;border-top:1px solid var(--line)}.state-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.state-cell{background:#f7fafc;border:1px solid #edf1f5;border-radius:7px;padding:9px 10px;color:var(--muted);font-size:10px}.state-cell strong{display:block;margin-top:4px;font-size:11px;font-weight:500;color:#637d90}.state-cell strong.warn{color:var(--amber)}.result{padding:10px 12px;border-radius:7px;background:#f5f9fd;font-size:11px;color:#6c879b;line-height:1.8;margin-top:11px}.result.error{background:#fff8ec;color:#9b753d}.result ul{padding-left:17px;margin:5px 0}.blocker-list{margin:15px 0;border:1px solid #eee3cc;background:#fffaf1;border-radius:8px;padding:11px 13px}.blocker-list h2{font-size:12px;margin:0 0 6px;color:#8c744e}.blocker-list p{font-size:10px;color:#9a8464;line-height:1.8;margin:3px 0}.overview-count{font-size:20px;font-weight:500;color:var(--accent);display:block;margin:3px 0}.overview-meta{font-size:10px;line-height:1.8;color:var(--muted)}.stage-note{font-size:10px;line-height:1.8;color:var(--muted);margin-top:10px}.footer-note{max-width:260px}.footer .btn{padding:0 10px}.doc-links{flex-wrap:wrap}.notice{line-height:1.9}.field select{text-overflow:ellipsis}.section-title .actions{flex-wrap:wrap}.pane{animation:reveal .2s ease-out}@keyframes reveal{from{opacity:.4;transform:translateY(3px)}to{opacity:1;transform:none}}
+@media(max-width:720px){body{background:var(--bg)}.viewport{position:static;display:block;overflow:visible}.space{width:auto!important;height:auto!important}.app{position:static;width:100%;height:auto;min-height:100vh;transform:none!important;display:block;padding:10px}.sidebar{padding:8px;margin-bottom:10px}.sidebar .back,.sidebar .sidebar-bottom{display:none}.nav{flex-direction:row;overflow:auto}.nav button{display:none;flex-shrink:0}.nav button.active{display:flex;width:100%}.main{min-height:calc(100vh - 85px)}.page-head{padding:16px;align-items:flex-start}.page-head p{max-width:210px}.prototype-tag{font-size:8px;padding:4px 6px}.tabs{padding:0 15px;gap:16px;flex-wrap:wrap}.tabs button{font-size:11px}.saved-state{width:100%;margin:0 0 8px}.content{overflow:visible;padding:16px}.cards{grid-template-columns:1fr}.device-card{display:grid;grid-template-columns:1fr auto;column-gap:12px}.device-card-top{grid-column:1/-1}.device-card .summary,.device-card .link{grid-column:1/-1}.bus-card .form-grid,.module .form-grid,.module .details-body .form-grid,.binding .form-grid,.form-grid{grid-template-columns:1fr}.state-grid{grid-template-columns:repeat(2,1fr)}.section-title{align-items:flex-start;flex-wrap:wrap}.footer{position:sticky;bottom:0;z-index:3;padding:10px 12px;flex-wrap:wrap;box-shadow:0 -4px 15px #263a4808}.footer-note{max-width:none;width:100%}.footer .actions{width:100%;flex-wrap:wrap}.footer .btn{flex:1;min-height:42px;font-size:10px}.steps{gap:5px;padding:10px 8px}.step{font-size:9px;gap:4px}.steps>span{min-width:4px}.readonly-specs{flex-wrap:wrap;gap:8px}.module-head{flex-wrap:wrap}.overview-count{font-size:18px}}
+
+.fixed-value{min-height:36px;display:flex;align-items:center;color:#58748b;font-size:12px}.module .form-grid{grid-template-columns:1.4fr 1fr}.state-grid{grid-template-columns:repeat(2,1fr)}.module-head button{margin-left:auto}@media(max-width:720px){.module .form-grid{grid-template-columns:1fr}}
+.row-input{min-width:0}.row-input select{flex:1;min-width:0}.row-input .btn{flex-shrink:0}.readiness{margin-top:12px;padding-top:0;border:0}.result[hidden]{display:none}.footer-note{max-width:270px}
+.bus-card.basic .form-grid{grid-template-columns:1.4fr 1fr}.module.address-only .form-grid{grid-template-columns:minmax(0,160px)}@media(max-width:720px){.bus-card.basic .form-grid,.module.address-only .form-grid{grid-template-columns:1fr}}
+.module.motor-row{display:grid;grid-template-columns:minmax(70px,1fr) 150px auto;gap:14px;align-items:center;padding:10px 13px}.motor-row .module-head{display:contents}.motor-row .module-head strong{grid-column:1;grid-row:1}.motor-row .module-head button{grid-column:3;grid-row:1;margin:0}.module.motor-row.address-only .form-grid{grid-column:2;grid-row:1;display:block}.motor-row .field{flex-direction:row;align-items:center;gap:10px;white-space:nowrap}.motor-row .field input{width:100px}@media(max-width:720px){.module.motor-row{grid-template-columns:minmax(45px,1fr) 125px auto;gap:8px;padding:10px}.motor-row .field input{width:85px}}
+
+.config-extra{margin-top:12px;border-top:1px solid var(--line);padding-top:10px}.config-extra summary{cursor:pointer;color:#68849a;font-size:11px}.config-extra .form-grid{margin-top:12px}.module .form-grid{align-items:start}.field-note{line-height:1.8}.bus-card .form-grid{grid-template-columns:1.4fr 1fr}.protocol-hint{color:var(--muted);font-size:10px;margin:10px 0 0;line-height:1.8}@media(max-width:720px){.bus-card .form-grid{grid-template-columns:1fr}}@media(prefers-reduced-motion:reduce){.pane{animation:none}}
+.module[data-kind="tension"]>.module-head,.module[data-kind="displacement"]>.module-head{display:none}.module.motor-row{grid-template-columns:minmax(70px,1fr) 150px}.module[data-kind="tension"]>.form-grid{grid-template-columns:minmax(0,160px)}@media(max-width:720px){.module.motor-row{grid-template-columns:minmax(45px,1fr) 125px}.module[data-kind="tension"]>.form-grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body><datalist id="forceUnits"><option>原始值</option><option>N</option><option>kg</option><option>g</option><option>kN</option></datalist><datalist id="baudRates"><option value="1200"></option><option value="2400"></option><option value="4800"></option><option value="9600"></option><option value="19200"></option><option value="38400"></option><option value="57600"></option><option value="115200"></option><option value="230400"></option><option value="460800"></option><option value="921600"></option></datalist>
+<svg style="display:none" aria-hidden="true"><defs>
+<symbol id="arrow" viewBox="0 0 24 24"><path d="m14 6-6 6 6 6M8 12h12"/></symbol><symbol id="chevron" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></symbol>
+<symbol id="palette" viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 9 9c0-2-2-2-4-2h-1a2 2 0 0 1-2-2c0-1 1-2 0-3l-2-2Z"/><circle cx="7" cy="11" r=".6"/><circle cx="10" cy="7" r=".6"/></symbol>
+<symbol id="sliders" viewBox="0 0 24 24"><path d="M5 3v7m0 4v7M12 3v12m0 4v2M19 3v3m0 4v11M2 10h6m1 5h6m1-9h6"/></symbol>
+<symbol id="grid" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M9 3v18m6-18v18M3 9h18M3 15h18"/></symbol>
+<symbol id="db" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v7c0 4 16 4 16 0V5M4 12v7c0 4 16 4 16 0v-7"/></symbol>
+<symbol id="wave" viewBox="0 0 24 24"><path d="M3 12h4l3-8 4 16 3-8h4"/></symbol>
+<symbol id="plug" viewBox="0 0 24 24"><path d="M8 3v5m8-5v5M6 8h12v4a6 6 0 0 1-12 0V8Zm6 10v3"/></symbol>
+<symbol id="cpu" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/><path d="M9 2v4m6-4v4M9 18v4m6-4v4M2 9h4m-4 6h4m12-6h4m-4 6h4"/><rect x="9" y="9" width="6" height="6" rx="1"/></symbol>
+<symbol id="info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6m0-10v.5"/></symbol>
+<symbol id="check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol>
+<symbol id="scan" viewBox="0 0 24 24"><path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5M4 12h16"/></symbol>
+<symbol id="shield" viewBox="0 0 24 24"><path d="m12 3 8 3v6c0 5-8 9-8 9S4 17 4 12V6l8-3Z"/><path d="m8 12 3 3 5-6"/></symbol>
+</defs></svg>
+<div class="viewport" id="viewport"><div class="space" id="space"><div class="app">
+<aside class="sidebar">
+<button class="back" id="back"><svg><use href="#arrow"/></svg>返回试验台</button>
+<nav class="nav" aria-label="应用设置">
+<button data-placeholder="外观与主题"><svg><use href="#palette"/></svg>外观与主题</button>
+<button data-placeholder="云图显示"><svg><use href="#grid"/></svg>云图显示</button>
+<button data-placeholder="试验与采集"><svg><use href="#sliders"/></svg>试验与采集</button>
+<button data-placeholder="数据与日志"><svg><use href="#db"/></svg>数据与日志</button>
+<button data-placeholder="运行与诊断"><svg><use href="#wave"/></svg>运行与诊断</button>
+<button class="active" aria-current="page"><svg><use href="#plug"/></svg>设备连接<svg class="chevron"><use href="#chevron"/></svg></button>
+</nav>
+<div class="sidebar-bottom"><strong><i class="dot blue"></i>Cabbage Lab</strong>设备与通信设置</div>
+</aside>
+
+<main class="main">
+<header class="page-head"><div><h1>设备连接</h1><p>配置设备端口与通信参数。</p></div><span class="prototype-tag"><i class="dot blue"></i>交互原型 · 未接入硬件</span></header>
+<div class="tabs" role="tablist" aria-label="设备配置分类">
+<button role="tab" id="tab-overview" aria-controls="overview" aria-selected="true" data-tab="overview"><svg><use href="#sliders"/></svg>连接概览</button>
+<button role="tab" id="tab-actuators" aria-controls="actuators" aria-selected="false" tabindex="-1" data-tab="actuators"><svg><use href="#cpu"/></svg>执行机构</button>
+<button role="tab" id="tab-array" aria-controls="array" aria-selected="false" tabindex="-1" data-tab="array"><svg><use href="#grid"/></svg>电子皮肤</button>
+<button role="tab" id="tab-sensors" aria-controls="sensors" aria-selected="false" tabindex="-1" data-tab="sensors"><svg><use href="#wave"/></svg>拉力与位移</button>
+<span class="saved-state" id="savedState" aria-live="polite">有未保存的修改</span>
+</div>
+<div class="content" id="content">
+<section class="pane" id="overview" role="tabpanel" aria-labelledby="tab-overview">
+<div class="cards">
+<article class="device-card"><div class="device-card-top"><span class="tile"><svg><use href="#cpu"/></svg></span><span class="badge">未连接</span></div><h3>执行机构</h3><p>步进电机 / 升降装置</p><span class="overview-count" id="motorCount">2 个电机配置</span><div class="overview-meta">电机共用 RS485 总线<br>升降使用独立串口</div><div class="summary" id="actuatorSummary">未配置端口</div><button class="link" data-go="actuators">设置连接 →</button></article>
+<article class="device-card"><div class="device-card-top"><span class="tile"><svg><use href="#grid"/></svg></span><span class="badge">未连接</span></div><h3>电子皮肤</h3><p>按压 / 抓取采集器</p><span class="overview-count">2 个采集器</span><div class="overview-meta">USB / 串口 · 64 × 64<br>按连接方式配置采集器</div><div class="summary" id="arraySummary">未选择设备</div><button class="link" data-go="array">设置连接 →</button></article>
+<article class="device-card"><div class="device-card-top"><span class="tile"><svg><use href="#wave"/></svg></span><span class="badge">未连接</span></div><h3>拉力与位移</h3><p>RS485 · Modbus RTU</p><span class="overview-count">2 条类型总线</span><div class="overview-meta">拉力 GJ9658B<br>位移 MM 系列采集模块</div><div class="summary" id="sensorSummary">未配置端口</div><button class="link" data-go="sensors">设置连接 →</button></article>
+</div>
+<div class="result" id="overviewResult" role="status" hidden></div>
+</section>
+<section class="pane" id="actuators" role="tabpanel" aria-labelledby="tab-actuators" hidden>
+<div class="family-switch" role="group" aria-label="执行机构类型"><button data-actuator="motors" aria-pressed="true">步进电机 · 共用总线</button><button data-actuator="lift" aria-pressed="false">升降装置 · 独立连接</button></div>
+<div id="motorsPane" data-scope="motors">
+<div class="section-title"><h2>步进电机连接</h2><span class="eyebrow">RS485 · Modbus RTU</span></div>
+<div id="motorsBus"></div>
+<div class="section-title"><h2>电机从站</h2></div>
+<div class="module-list" id="motorModules"></div>
+<div class="doc-links"><a href="../控制协议/57步进电机-力川RS485驱动接入说明.md" target="_blank" rel="noopener">步进驱动接入说明 ↗</a></div><div id="motorsReadiness"></div>
+</div>
+<div id="liftPane" data-scope="lift" hidden>
+<div class="section-title"><h2>升降装置连接</h2><span class="eyebrow">霍尔控制器</span></div>
+<label class="field">连接接口<select id="liftInterface" data-config><option value="">请选择接口</option><option value="RS232">RS232</option><option value="RS485">RS485</option></select></label>
+<div id="liftBus" style="margin-top:14px"></div>
+<p class="field-note">RS232 预设 38400 / 8N1，可按设备配置调整；无需设置站号。</p>
+<div class="doc-links"><a href="../控制协议/升降气缸-霍尔控制器接入说明.md" target="_blank" rel="noopener">升降控制器接入说明 ↗</a></div><div id="liftReadiness"></div>
+</div>
+</section>
+<section class="pane" id="array" role="tabpanel" aria-labelledby="tab-array" data-scope="array" hidden>
+<div class="section-title"><h2>电子皮肤采集器</h2><span class="eyebrow">64 × 64</span></div>
+<label class="field" style="margin-bottom:16px">连接方式<select id="arrayInterface" data-config><option value="usb">USB</option><option value="serial">串口</option></select></label>
+<div id="arrayUsb" data-array-mode="usb"><div class="module-list"><article class="module"><div class="module-head"><strong>按压采集器</strong><span class="badge">未连接</span></div><label class="field">REV 号<select id="pressRev" data-config><option value="0" selected>0</option><option value="1">1</option><option value="2">2</option><option value="3">3</option></select></label></article><article class="module"><div class="module-head"><strong>抓取采集器</strong><span class="badge">未连接</span></div><label class="field">REV 号<select id="gripRev" data-config><option value="0">0</option><option value="1" selected>1</option><option value="2">2</option><option value="3">3</option></select></label></article></div><p class="protocol-hint">通过 REV 号绑定按压与抓取采集卡，两台不能使用相同 REV。64 × 64 点阵未标定时显示原始值。</p></div>
+<div id="arraySerial" data-array-mode="serial" hidden><div class="module-list"><div id="pressBus"></div><div id="gripBus"></div></div><p class="protocol-hint">通过串口号区分按压与抓取采集卡，两台分别选择独立端口。</p></div>
+<div class="doc-links"><a href="../控制协议/电子皮肤64X64-USB采集卡接入说明.md" target="_blank" rel="noopener">电子皮肤接入说明 ↗</a></div><div id="arrayReadiness"></div>
+</section>
+<section class="pane" id="sensors" role="tabpanel" aria-labelledby="tab-sensors" hidden>
+<div class="family-switch" role="group" aria-label="传感器类型"><button data-sensor="tension" aria-pressed="true">拉力采集 · 独立总线</button><button data-sensor="displacement" aria-pressed="false">位移采集 · 独立总线</button></div>
+<div id="tensionPane" data-scope="tension">
+<div class="section-title"><h2>拉力采集模块</h2><span class="eyebrow">GJ9658B · 8N1</span></div>
+<div id="tensionBus"></div>
+<div class="module-list" id="tensionModules"></div>
+<p class="field-note">同一总线的站号不能重复。</p>
+<div class="doc-links"><a href="../控制协议/拉力传感器-GJ9658B接入说明.md" target="_blank" rel="noopener">拉力采集接入说明 ↗</a></div><div id="tensionReadiness"></div>
+</div>
+<div id="displacementPane" data-scope="displacement" hidden>
+<div class="section-title"><h2>直线位移采集模块</h2><span class="eyebrow">Modbus RTU · 8N1</span></div>
+<div id="displacementBus"></div>
+<div class="module-list" id="displacementModules"></div>
+<p class="field-note">P / G 使用不同寄存器表，请按实物选择模块类型；P 固定 CH1，G 按实际接线选择通道。</p>
+<div class="doc-links"><a href="../控制协议/直线位移传感器-电子尺RS485采集接入说明.md" target="_blank" rel="noopener">位移采集接入说明 ↗</a></div><div id="displacementReadiness"></div>
+</div>
+</section>
+</div>
+<footer class="footer"><div class="footer-note"><svg><use href="#shield"/></svg><span id="footerHint">配置设备通信参数</span></div><div class="actions"><button class="btn" id="checkConfig">检查配置</button><button class="btn ghost" id="verify">连接验证</button><button class="btn primary" id="save"><svg><use href="#check"/></svg>保存草稿</button></div></footer>
+</main></div></div></div>
+<dialog id="modal"><div class="modal-head"><h2 id="modalTitle"></h2><button class="close" id="closeModal" aria-label="关闭">×</button></div><div id="modalBody"></div></dialog>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<script>
+'use strict';
+const $ = id => document.getElementById(id);
+const $$ = selector => Array.from(document.querySelectorAll(selector));
+const scopes = ['motors','lift','array','tension','displacement'];
+const names = {motors:'电机总线',lift:'升降连接',array:'电子皮肤',tension:'拉力总线',displacement:'位移总线'};
+const saved = {}, checks = {};
+let activeTab='overview',actuator='motors',sensor='tension',sequence=0,toastTimer;
+const displacementModels=[['','请选择模块类型'],['p','P · MM-V05-485-R 专用模块'],['g','G · 通用采集器']];
+function options(items){return items.map(([value,label])=>`<option value="${value}">${label}</option>`).join('');}
+function toast(message){$('toast').textContent=message;$('toast').classList.add('visible');clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').classList.remove('visible'),3500);}
+function modal(title,message){$('modalTitle').textContent=title;$('modalBody').textContent=message;$('modalBody').className='modal-copy';$('modal').showModal();}
+function busForm(scope){
+ const motor=scope==='motors',lift=scope==='lift',skin=['press','grip'].includes(scope);
+ return `<div class="bus-card"><div class="bus-title"><svg><use href="#plug"/></svg>${skin?(scope==='press'?'按压采集器':'抓取采集器'):names[scope]}<span class="badge">未连接</span></div><div class="form-grid"><label class="field">${lift||skin?'串口':'共用串口'}<div class="row-input"><input id="${scope}Port" data-config placeholder="如 COM3 或 /dev/ttyUSB0" autocomplete="off"><button class="btn small" type="button" data-scan>扫描</button></div></label><label class="field">波特率<input id="${scope}Baud" data-config type="number" list="baudRates" min="1" max="4000000" step="1" ${motor||skin?'placeholder="选择或输入"':`value="${lift?38400:9600}"`}></label></div><details class="config-extra"><summary>高级通信参数</summary><div class="form-grid"><label class="field">数据位<select id="${scope}Bits" data-config><option>8</option><option>7</option><option>6</option><option>5</option></select></label><label class="field">校验位<select id="${scope}Parity" data-config><option value="N">无校验 N</option><option value="E">偶校验 E</option><option value="O">奇校验 O</option></select></label><label class="field">停止位<select id="${scope}Stop" data-config><option>1</option><option>2</option></select></label><label class="field">响应超时（ms）<input data-config type="number" min="50" max="60000" step="1" value="1000"></label><label class="field">${skin?'接收间隔':'轮询间隔'}（ms）<input data-config type="number" min="10" max="60000" step="1" value="100"></label></div></details><p class="protocol-hint">${motor?'通信参数需与驱动器一致；两个电机共用总线，站号各不相同。':scope==='tension'?'默认 9600 / 8N1；写指令后至少等待 500 ms。':scope==='lift'?'自定义 AA … FF 帧，不使用 Modbus 站号与 CRC。':skin?'按实际设备设置通信参数，通过独立串口绑定采集用途。':'默认 9600 / 8N1；同一总线使用一致通信参数。'}</p></div>`;
+}
+for(const key of ['motors','lift','tension','displacement','press','grip'])$(key+'Bus').innerHTML=busForm(key);
+for(const scope of scopes)$(scope+'Readiness').innerHTML=`<div class="result" id="${scope}Result" role="status" hidden></div>`;
+function moduleList(scope){return $(scope==='motors'?'motorModules':scope+'Modules');}
+function addModule(scope){
+ const card=document.createElement('article');card.className='module';card.dataset.module=String(++sequence);card.dataset.kind=scope;
+ const model=scope==='displacement'?`<label class="field">模块类型<select data-config data-model>${options(displacementModels)}</select></label>`:'';
+ if(scope==='motors')card.classList.add('address-only');
+ if(scope==='motors')card.classList.add('motor-row');
+ card.innerHTML=`<div class="module-head"><strong>设备</strong></div><div class="form-grid">${model}<label class="field">站号<input data-config data-station type="number" min="1" max="${scope==='motors'?254:247}" step="1" ${scope==='displacement'&&!moduleList(scope).children.length?'value="1"':''} placeholder="${scope==='motors'?'1～254':'1～247'}"></label></div>`;
+ if(scope==='tension')card.insertAdjacentHTML('beforeend',`<details class="config-extra"><summary>数值与标定</summary><div class="form-grid"><label class="field">显示单位<input data-config list="forceUnits" value="原始值" required></label><label class="field">小数位<input data-config type="number" min="0" max="9" step="1" value="0" required></label></div><p class="protocol-hint">实际站号 = 拨码值 + 地址偏移；int32 低字在前。单位与小数位按标定填写，不写入设备。</p></details>`);
+ if(scope==='displacement')card.insertAdjacentHTML('beforeend',`<details class="config-extra" open><summary>通道与位移换算</summary><div class="form-grid"><label class="field">通道<select data-config data-channel><option value="1">CH1</option><option value="2">CH2</option><option value="3">CH3</option></select></label><label class="field">读取方式<select data-config data-reading><option value="raw">原始值换算</option><option value="float">模块 float32 结果</option></select></label><label class="field" data-convert>原始值下限<input data-config data-raw-min type="number" step="any" value="0" required></label><label class="field" data-convert>原始值上限<input data-config data-raw-max type="number" step="any" value="5000" required></label><label class="field" data-convert>位移下限<input data-config data-lower type="number" step="any" placeholder="填写实际量程" required></label><label class="field" data-convert>位移上限<input data-config data-upper type="number" step="any" placeholder="填写实际量程" required></label><label class="field">结果单位<input data-config value="mm" required></label></div><p class="protocol-hint" data-value-note></p></details>`);
+ moduleList(scope).append(card);invalidateAll();update();
+}
+function fields(scope){return $$(`[data-scope="${scope}"] [data-config]`);}
+function snapshot(scope){return JSON.stringify(fields(scope).map(input=>[input.id||input.getAttribute('data-model')||input.getAttribute('data-station'),input.value]));}
+function dirty(scope){return saved[scope]!==snapshot(scope);}
+function current(){return activeTab==='actuators'?actuator:activeTab==='sensors'?sensor:activeTab;}
+function invalidateAll(){for(const key of scopes)delete checks[key];$('overviewResult').hidden=true;}
+function normalizedPort(value){const p=value.trim();return /^com\d+$/i.test(p)?p.toUpperCase():p;}
+function scopePorts(scope){return scope==='array'?($('arrayInterface').value==='serial'?['press','grip'].map(key=>$(key+'Port').value):[]):[$(scope+'Port').value];}
+function scopePort(scope){return scopePorts(scope)[0]||'';}
+function portConflict(scope){
+ for(const value of scopePorts(scope)){
+  const port=normalizedPort(value);if(!port)continue;
+  const other=scopes.find(key=>key!==scope&&scopePorts(key).some(value=>normalizedPort(value)===port));
+  if(other)return `${port} 已用于${names[other]}，请选择其他串口。`;
+ }
+ return '';
+}
+function problems(scope){
+ const errors=[],conflict=portConflict(scope);if(conflict)errors.push(conflict);
+ for(const field of fields(scope))if(!field.disabled&&!field.checkValidity())errors.push('请填写有效的参数值。');
+ if(scope==='array'){
+  if($('arrayInterface').value==='serial'){
+   for(const [key,label] of [['press','按压'],['grip','抓取']]){
+    if(!$(key+'Port').value.trim())errors.push(`请填写${label}采集器的串口。`);
+    const baud=Number($(key+'Baud').value);
+    if(!Number.isSafeInteger(baud)||baud<=0)errors.push(`${label}采集器：请选择或输入有效波特率。`);
+   }
+   const press=normalizedPort($('pressPort').value),grip=normalizedPort($('gripPort').value);
+   if(press&&press===grip)errors.push('按压与抓取采集器不能绑定同一串口。');
+  }else{
+   for(const key of ['press','grip'])if(!['0','1','2','3'].includes($(key+'Rev').value))errors.push('请选择有效的 REV 号。');
+   if($('pressRev').value===$('gripRev').value)errors.push('按压与抓取采集器不能绑定同一 REV 号。');
+  }
+  return [...new Set(errors)];
+ }
+ if(!scopePort(scope).trim())errors.push('请填写串口。');
+ if(!$(scope+'Baud').value)errors.push('请选择波特率。');
+ if(scope==='lift'){if(!$('liftInterface').value)errors.push('请选择连接接口。');return [...new Set(errors)];}
+ const cards=Array.from(moduleList(scope).children);if(!cards.length)errors.push('请添加设备。');
+ const seen=new Set();
+ cards.forEach((card,index)=>{
+  if(scope==='displacement'&&card.querySelector('[data-reading]').value==='raw'){
+   if(Number(card.querySelector('[data-raw-max]').value)<=Number(card.querySelector('[data-raw-min]').value))errors.push(`设备 ${index+1}：原始值上限必须大于下限。`);
+   if(Number(card.querySelector('[data-upper]').value)<=Number(card.querySelector('[data-lower]').value))errors.push(`设备 ${index+1}：位移上限必须大于下限。`);
+  }
+  const station=card.querySelector('[data-station]').value,n=Number(station),max=scope==='motors'?254:247;
+  if(scope==='displacement'&&!card.querySelector('[data-model]').value)errors.push(`设备 ${index+1}：请选择模块类型。`);
+  if(!station||!Number.isInteger(n)||n<1||n>max)errors.push(`设备 ${index+1}：站号应为 1～${max} 的整数。`);
+  else if(seen.has(n))errors.push(`站号 ${n} 重复。`);else seen.add(n);
+ });return [...new Set(errors)];
+}
+function renderResult(scope){
+ const result=$(scope+'Result'),checked=checks[scope];result.hidden=!checked;if(!checked)return;
+ result.replaceChildren();result.className='result'+(checked.errors.length?' error':'');
+ if(!checked.errors.length){result.textContent='配置检查通过。';return;}
+ const list=document.createElement('ul');for(const message of checked.errors){const li=document.createElement('li');li.textContent=message;list.append(li);}result.append(list);
+}
+function portSummary(scope){return scopePort(scope).trim()||'未配置';}
+function syncArrayMode(){
+ const mode=$('arrayInterface').value;
+ $$('[data-array-mode]').forEach(panel=>{const active=panel.dataset.arrayMode===mode;panel.hidden=!active;panel.querySelectorAll('input,select,button').forEach(control=>control.disabled=!active);});
+}
+function update(){
+ syncArrayMode();
+ $$('[data-kind="displacement"]').forEach(card=>{
+  const p=card.querySelector('[data-model]').value==='p',raw=card.querySelector('[data-reading]').value==='raw';
+  const channel=card.querySelector('[data-channel]');channel.disabled=p;if(p)channel.value='1';
+  card.querySelectorAll('[data-convert]').forEach(label=>{label.hidden=!raw;label.querySelector('input').disabled=!raw;});
+  const min=card.querySelector('[data-raw-min]'),max=card.querySelector('[data-raw-max]');min.readOnly=p;max.readOnly=p;if(p){min.value='0';max.value='5000';}
+  card.querySelector('[data-value-note]').textContent=raw?'按原始值范围与实际量程进行线性换算，超范围数据标记异常。':'一次读取两个寄存器，按 ABCD 大端 float32 解析；直接使用模块结果，不重复缩放。单位需与模块配置一致。';
+ });
+ const scope=current(),keys=activeTab==='overview'?scopes:[scope];
+ const changed=keys.some(dirty);$('savedState').textContent=changed?'● 未保存':'● 草稿已保存';$('savedState').classList.toggle('changed',changed);
+ $('save').textContent=activeTab==='overview'?'保存全部草稿':'保存草稿';$('checkConfig').textContent=activeTab==='overview'?'检查全部配置':'检查配置';
+ $('verify').hidden=activeTab==='overview';$('verify').textContent='连接验证';
+ $('verify').disabled=!scopes.includes(scope)||dirty(scope)||(checks[scope]?.errors.length??1)>0;
+ $('footerHint').textContent=scope==='array'?($('arrayInterface').value==='usb'?'USB · 64 × 64':'串口 · 按压 / 抓取独立端口'):scope==='lift'?'霍尔控制器':'RS485 · Modbus RTU';
+ if(activeTab==='overview')$('footerHint').textContent='设备通信设置';
+ $('motorCount').textContent=moduleList('motors').children.length+' 个电机配置';
+ $('actuatorSummary').textContent='电机 '+portSummary('motors')+' · 升降 '+portSummary('lift');
+ $('sensorSummary').textContent='拉力 '+portSummary('tension')+' · 位移 '+portSummary('displacement');
+ $('arraySummary').textContent=['press','grip'].map((key,i)=>`${i?'抓取':'按压'} ${$('arrayInterface').value==='usb'?'REV '+$(key+'Rev').value:normalizedPort($(key+'Port').value)||'未配置'}`).join(' · ');
+ for(const key of scopes)renderResult(key);
+ $$('[data-module]').forEach(card=>{const index=Array.from(moduleList(card.dataset.kind).children).indexOf(card)+1;card.querySelector('.module-head strong').textContent=(card.dataset.kind==='motors'?'电机 ':'采集模块 ')+index;});
+}
+function setTab(tab){activeTab=tab;$$('[data-tab]').forEach(button=>{const selected=button.dataset.tab===tab;button.setAttribute('aria-selected',String(selected));button.tabIndex=selected?0:-1;});$$('.pane').forEach(pane=>pane.hidden=pane.id!==tab);$('content').scrollTo(0,0);update();}
+function selectFamily(kind,value){if(kind==='actuator')actuator=value;else sensor=value;for(const key of kind==='actuator'?['motors','lift']:['tension','displacement'])$(key+'Pane').hidden=key!==value;$$(`[data-${kind}]`).forEach(button=>button.setAttribute('aria-pressed',String(button.dataset[kind]===value)));update();}
+$$('[data-tab]').forEach((button,index)=>{button.onclick=()=>setTab(button.dataset.tab);button.onkeydown=event=>{if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;event.preventDefault();const tabs=$$('[data-tab]');const next=event.key==='Home'?0:event.key==='End'?tabs.length-1:(index+(event.key==='ArrowRight'?1:-1)+tabs.length)%tabs.length;setTab(tabs[next].dataset.tab);tabs[next].focus();};});
+$$('[data-go]').forEach(button=>button.onclick=()=>setTab(button.dataset.go));
+$$('[data-actuator]').forEach(button=>button.onclick=()=>selectFamily('actuator',button.dataset.actuator));
+$$('[data-sensor]').forEach(button=>button.onclick=()=>selectFamily('sensor',button.dataset.sensor));
+function changed(event){if(!event.target.matches('[data-config]'))return;invalidateAll();update();}
+document.addEventListener('input',changed);document.addEventListener('change',changed);
+document.addEventListener('click',event=>{
+ if(event.target.closest('[data-scan-usb]')){modal('扫描 USB 设备','当前为交互原型，未执行硬件扫描。');return;}
+ if(event.target.closest('[data-scan]'))modal('扫描串口','当前为交互原型，未执行硬件扫描。');
+});
+$('save').onclick=()=>{for(const key of activeTab==='overview'?scopes:[current()])saved[key]=snapshot(key);toast('草稿已保存，刷新页面后重置。');update();};
+$('checkConfig').onclick=()=>{
+ const keys=activeTab==='overview'?scopes:[current()];for(const key of keys)checks[key]={errors:problems(key)};
+ const count=keys.reduce((n,key)=>n+checks[key].errors.length,0);
+ if(activeTab==='overview'){const result=$('overviewResult');result.hidden=false;result.className='result'+(count?' error':'');result.textContent=count?`有 ${count} 项配置需要补充，请进入对应设备设置。`:'全部配置检查通过。';}
+ toast(count?'请检查标出的配置项。':'配置检查通过。');update();
+};
+$('verify').onclick=()=>{
+ const scope=current();if(!scopes.includes(scope)||dirty(scope))return;
+ checks[scope]={errors:problems(scope)};update();if(checks[scope].errors.length)return;
+ const steps={motors:'只读查询各站状态字与当前位置；不触发运动、回零或清错。',lift:'打开串口并被动接收高度数据；不发送运动、复位或清错指令。',tension:'读取实时重量寄存器 0～1；不执行去皮、校准或参数写入。',displacement:'按所选 P / G 型号与通道读取数据；不写量程、校准或重启寄存器。',array:'按配置打开接入资源并接收点阵数据，不发送猜测的启停命令。'};
+ modal('连接验证 · 模拟说明',steps[scope]+' 当前原型未连接硬件，不会打开端口或发送报文；配置检查通过不代表设备连接成功。');
+};
+$('closeModal').onclick=()=>$('modal').close();$('modal').addEventListener('click',event=>{if(event.target!==$('modal'))return;const box=$('modal').getBoundingClientRect();if(event.clientX<box.left||event.clientX>box.right||event.clientY<box.top||event.clientY>box.bottom)$('modal').close();});
+$$('[data-placeholder]').forEach(button=>button.onclick=()=>toast('本原型不包含“'+button.dataset.placeholder+'”页面。'));
+$('back').onclick=()=>toast('当前为独立设置原型。');
+function resize(){if(innerWidth<=720){$('space').style.removeProperty('width');$('space').style.removeProperty('height');$('space').style.removeProperty('--scale');return;}const scale=Math.min(innerWidth/1024,innerHeight/600);$('space').style.width=1024*scale+'px';$('space').style.height=600*scale+'px';$('space').style.setProperty('--scale',scale);}
+for(const scope of ['motors','motors','tension','displacement'])addModule(scope);
+window.addEventListener('resize',resize);resize();update();
+</script>
+</body>
+</html>
